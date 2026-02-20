@@ -44,15 +44,17 @@ Then run the **`/new-demo`** slash command:
 
 The wizard walks you through 5 phases:
 
-| Phase | What it asks | Time |
+| Phase | What it does | Time |
 |-------|-------------|------|
-| **1. Story** | Customer name, industry, use cases, demo narrative | 2 min |
+| **1. Customer Discovery** | You provide the customer website + Salesforce UCO (or business problem). Vibe researches the company, extracts brand colors, finds industry challenges, and proposes a customer-specific demo story. | 5 min |
 | **2. Infrastructure** | Workspace URL, CLI profile, catalog, schema, warehouse ID | 3 min |
-| **3. Data Model** | Entities, KPIs, historical range, Lakebase tables | 5 min |
+| **3. Data Model** | Entities and KPIs tailored to the customer's actual business (informed by Phase 1 research) | 5 min |
 | **4. AI Layer** | Genie tables, MAS persona, sub-agents, MCP server | 3 min |
-| **5. UI** | Layout, colors, dashboard content, pages | 3 min |
+| **5. UI** | Layout, brand colors (auto-extracted from customer website), dashboard content, pages | 3 min |
 
 After each phase, your answers are saved to `demo-config.yaml` so nothing is lost. At the end, you'll see a full summary to approve before any code is generated.
+
+**Why the research step matters:** Instead of building a generic "manufacturing demo," vibe builds a demo that references the customer's actual products, facilities, challenges, and brand. The demo feels like it was built *for them*.
 
 Once approved, vibe will:
 1. Copy the core modules (Lakebase pool, MAS streaming, health check) to your project
