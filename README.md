@@ -30,22 +30,39 @@ mkdir ~/demos/blue-origin-launch-ops && cd ~/demos/blue-origin-launch-ops
 
 Name the folder whatever fits your demo. This will be a fresh project with its own git history.
 
-### 3. Open in vibe and tell it what you want
+### 3. Open in vibe and run the setup wizard
 
 ```bash
 vibe agent
 ```
 
-Then say:
+Then run the **`/new-demo`** slash command:
+
+```
+/new-demo
+```
+
+The wizard walks you through 5 phases:
+
+| Phase | What it asks | Time |
+|-------|-------------|------|
+| **1. Story** | Customer name, industry, use cases, demo narrative | 2 min |
+| **2. Infrastructure** | Workspace URL, CLI profile, catalog, schema, warehouse ID | 3 min |
+| **3. Data Model** | Entities, KPIs, historical range, Lakebase tables | 5 min |
+| **4. AI Layer** | Genie tables, MAS persona, sub-agents, MCP server | 3 min |
+| **5. UI** | Layout, colors, dashboard content, pages | 3 min |
+
+After each phase, your answers are saved to `demo-config.yaml` so nothing is lost. At the end, you'll see a full summary to approve before any code is generated.
+
+Once approved, vibe will:
+1. Copy the core modules (Lakebase pool, MAS streaming, health check) to your project
+2. Fill in all config files with your answers (no TODOs left behind)
+3. Generate the data model, API routes, frontend pages, and agent prompts
+4. Walk you through deployment (create workspace resources, run notebooks, deploy app)
+
+**Already know what you want?** You can skip the wizard and give vibe a direct prompt instead:
 
 > Using the scaffold at ~/dbx-demo-scaffold, build me a launch operations demo for Blue Origin. They manage rocket engine test campaigns across 3 test facilities with 50+ engine units. Key use cases: test campaign scheduling, anomaly detection from sensor telemetry during hot-fire tests, and post-test analysis automation. I want a dark theme with a sidebar nav and a dashboard showing upcoming test schedules and engine health scores.
-
-Vibe will:
-1. Read the scaffold's `CLAUDE.md` and understand the 3-layer architecture
-2. Copy the core modules (Lakebase pool, MAS streaming, health check) to your new project
-3. Ask about your UI preferences if you didn't specify them
-4. Generate the domain-specific data model, API routes, frontend pages, and agent prompts
-5. Walk you through deployment (create workspace resources, run notebooks, deploy app)
 
 ### 4. Initialize git in your new project
 
@@ -101,6 +118,8 @@ AI Dev Kit is the **how you build** (tools + knowledge). This scaffold is the **
 
 ```
 dbx-demo-scaffold/
+├── .claude/commands/
+│   └── new-demo.md              # /new-demo wizard — 5-phase guided setup
 ├── CLAUDE.md                    # Architecture, patterns, gotchas (vibe reads this)
 ├── README.md                    # You're here
 ├── app/
@@ -126,6 +145,9 @@ dbx-demo-scaffold/
 │   └── 03_seed_lakebase.py      # Seed Lakebase operational tables
 ├── agent_bricks/                # MAS + KA config templates
 ├── genie_spaces/                # Genie Space config template
+├── skill/                       # AI Dev Kit skill (knowledge docs)
+│   ├── SKILL.md                 # Skill definition
+│   └── resources/               # Lakebase, Apps, data gen reference docs
 └── examples/
     └── supply_chain_routes.py   # Reference: all route patterns from a production demo
 ```
