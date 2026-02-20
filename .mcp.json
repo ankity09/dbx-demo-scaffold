@@ -1,0 +1,16 @@
+{
+  "$schema": "Template — MCP servers for Claude Code / vibe",
+  "$instructions": "Update the profile to match your Databricks CLI profile name",
+  "mcpServers": {
+    "databricks": {
+      "command": "~/ai-dev-kit/databricks-mcp-server/.venv/bin/python",
+      "args": [
+        "~/ai-dev-kit/databricks-mcp-server/run_server.py"
+      ],
+      "type": "stdio",
+      "env": {
+        "DATABRICKS_CONFIG_PROFILE": "TODO"
+      }
+    }
+  }
+}

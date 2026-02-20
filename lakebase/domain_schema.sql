@@ -1,0 +1,55 @@
+-- Domain-specific Lakebase tables — customize for your demo.
+-- Apply this AFTER core_schema.sql.
+--
+-- Pattern: each table should have:
+--   - SERIAL PRIMARY KEY
+--   - created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+--   - status column with CHECK constraint
+--   - Indexes on frequently queried columns
+--
+-- Examples for different domains:
+--
+-- === Predictive Maintenance ===
+-- CREATE TABLE IF NOT EXISTS work_orders (
+--     work_order_id    SERIAL PRIMARY KEY,
+--     wo_number        VARCHAR(50) NOT NULL UNIQUE,
+--     asset_id         VARCHAR(50) NOT NULL,
+--     asset_name       VARCHAR(200),
+--     priority         VARCHAR(20) NOT NULL DEFAULT 'medium'
+--                      CHECK (priority IN ('low', 'medium', 'high', 'critical')),
+--     description      TEXT NOT NULL,
+--     assigned_to      VARCHAR(100),
+--     status           VARCHAR(30) NOT NULL DEFAULT 'draft'
+--                      CHECK (status IN ('draft', 'submitted', 'approved', 'in_progress', 'completed', 'cancelled')),
+--     estimated_hours  NUMERIC(5, 1),
+--     created_by       VARCHAR(100) NOT NULL DEFAULT 'system',
+--     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+--     updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_wo_status ON work_orders(status);
+-- CREATE INDEX IF NOT EXISTS idx_wo_asset ON work_orders(asset_id);
+--
+-- CREATE TABLE IF NOT EXISTS sensor_alerts (
+--     alert_id         SERIAL PRIMARY KEY,
+--     asset_id         VARCHAR(50) NOT NULL,
+--     alert_type       VARCHAR(50) NOT NULL,
+--     severity         VARCHAR(20) NOT NULL DEFAULT 'medium',
+--     reading_value    NUMERIC(12, 4),
+--     threshold_value  NUMERIC(12, 4),
+--     description      TEXT,
+--     status           VARCHAR(20) NOT NULL DEFAULT 'open'
+--                      CHECK (status IN ('open', 'acknowledged', 'resolved', 'escalated')),
+--     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+--     resolved_at      TIMESTAMPTZ
+-- );
+-- CREATE INDEX IF NOT EXISTS idx_alerts_status ON sensor_alerts(status);
+--
+-- === Supply Chain ===
+-- CREATE TABLE IF NOT EXISTS purchase_orders (...);
+-- CREATE TABLE IF NOT EXISTS shipment_exceptions (...);
+--
+-- === Healthcare ===
+-- CREATE TABLE IF NOT EXISTS care_tasks (...);
+-- CREATE TABLE IF NOT EXISTS patient_alerts (...);
+
+-- Add your domain-specific tables below:

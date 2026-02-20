@@ -1,0 +1,24 @@
+{
+  "$schema": "Template — Knowledge Assistant (KA) configuration",
+  "$instructions": [
+    "1. Create a Knowledge Assistant in the Databricks UI (Playground > New KA)",
+    "2. Upload domain-specific documents (SOPs, manuals, policies)",
+    "3. Note the KA ID from the URL (e.g., /knowledge-assistant/{ka_id})",
+    "4. Reference this KA ID in the MAS config above"
+  ],
+  "name": "TODO_Knowledge_Base",
+  "description": "Knowledge base for TODO domain SOPs and procedures",
+  "documents": [
+    {
+      "$comment": "Upload these types of documents to make the KA useful:",
+      "examples": [
+        "Standard Operating Procedures (SOPs)",
+        "Compliance and safety guidelines",
+        "Best practices and playbooks",
+        "FAQ documents",
+        "Domain-specific reference materials"
+      ]
+    }
+  ],
+  "instructions": "You are a knowledge assistant for TODO domain. Answer questions using the uploaded documents. When you don't have information, say so clearly. Cite specific documents when possible."
+}

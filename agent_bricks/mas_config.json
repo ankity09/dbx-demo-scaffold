@@ -1,0 +1,57 @@
+{
+  "$schema": "Template — Multi-Agent Supervisor (MAS) configuration",
+  "$instructions": [
+    "1. Create each sub-agent (KA, Genie Space, UC functions) first",
+    "2. Fill in the agent definitions below",
+    "3. POST to /api/2.0/multi-agent-supervisors to create",
+    "4. The endpoint name will be: mas-{first_8_chars_of_tile_id}-endpoint",
+    "5. Use that short tile_id prefix as MAS_TILE_ID in app.yaml"
+  ],
+  "name": "TODO_Demo_Supervisor",
+  "description": "Multi-agent supervisor for TODO demo",
+  "instructions": "You are the TODO AI Advisor. You orchestrate sub-agents to answer questions about TODO domain. Always use tools to get real data before answering. Be specific with numbers, IDs, and entity names.",
+  "agents": [
+    {
+      "$comment": "Genie Space agent — natural language queries over Delta Lake tables",
+      "agent_type": "databricks_genie",
+      "databricks_genie": {
+        "genie_space_id": "TODO"
+      },
+      "name": "TODO_data",
+      "description": "Query TODO data tables using natural language. Use this for any questions about TODO domain data."
+    },
+    {
+      "$comment": "Knowledge Assistant (KA) — answers from uploaded docs/SOPs",
+      "agent_type": "knowledge_assistant",
+      "knowledge_assistant": {
+        "ka_id": "TODO"
+      },
+      "name": "TODO_knowledge_base",
+      "description": "Look up standard operating procedures, policies, and domain knowledge."
+    },
+    {
+      "$comment": "UC function agent — custom Python functions registered in Unity Catalog",
+      "$note": "MCP create_or_update_mas doesn't support UC function agents. Use REST API directly.",
+      "agent_type": "unity_catalog_function",
+      "unity_catalog_function": {
+        "uc_path": {
+          "catalog": "TODO_CATALOG",
+          "schema": "TODO_SCHEMA",
+          "name": "TODO_function_name"
+        }
+      },
+      "name": "TODO_calculator",
+      "description": "Calculate TODO metrics using custom logic."
+    },
+    {
+      "$comment": "MCP connection agent — Lakebase write access for the MAS",
+      "$note": "Create an MCP connection in the workspace first, then reference it here.",
+      "agent_type": "mcp_connection",
+      "mcp_connection": {
+        "mcp_connection_id": "TODO"
+      },
+      "name": "mcp-lakebase-connection",
+      "description": "Write operational data to Lakebase PostgreSQL tables."
+    }
+  ]
+}

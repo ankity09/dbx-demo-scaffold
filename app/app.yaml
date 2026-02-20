@@ -1,0 +1,32 @@
+command:
+  - uvicorn
+  - backend.main:app
+  - --host
+  - 0.0.0.0
+  - --port
+  - 8000
+
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: "TODO"
+  - name: CATALOG
+    value: "TODO"
+  - name: SCHEMA
+    value: "TODO"
+  - name: MAS_TILE_ID
+    value: "TODO"
+
+resources:
+  - name: sql-warehouse
+    sql_warehouse:
+      id: "TODO"
+      permission: CAN_USE
+  - name: mas-endpoint
+    serving_endpoint:
+      name: "mas-TODO-endpoint"
+      permission: CAN_QUERY
+  - name: database
+    database:
+      instance_name: "TODO"
+      database_name: "TODO"
+      permission: CAN_CONNECT_AND_CREATE

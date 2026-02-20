@@ -1,0 +1,10 @@
+command:
+  - python
+  - mcp_server.py
+
+resources:
+  - name: database
+    database:
+      instance_name: TODO  # Your Lakebase instance name (hyphens, not underscores)
+      database_name: TODO  # Your Lakebase database name
+      permission: CAN_CONNECT_AND_CREATE

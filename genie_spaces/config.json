@@ -1,0 +1,28 @@
+{
+  "$schema": "Template — Genie Space configuration",
+  "$instructions": [
+    "1. Create a Genie Space in the Databricks UI",
+    "2. Add your Delta Lake tables as data sources",
+    "3. PATCH the Genie Space to add table_identifiers (UI doesn't always save these):",
+    "   databricks api patch /api/2.0/genie/spaces/{space_id} --json '{\"table_identifiers\": [...]}'",
+    "4. Grant CAN_RUN to the app service principal AND the users who will use the demo",
+    "5. Reference the Genie Space ID in the MAS config"
+  ],
+  "name": "TODO Demo Data",
+  "description": "Natural language interface to TODO demo Delta Lake tables",
+  "warehouse_id": "TODO",
+  "table_identifiers": [
+    {
+      "$comment": "List all tables the Genie Space should know about",
+      "catalog": "TODO_CATALOG",
+      "schema": "TODO_SCHEMA",
+      "table": "TODO_TABLE_1"
+    },
+    {
+      "catalog": "TODO_CATALOG",
+      "schema": "TODO_SCHEMA",
+      "table": "TODO_TABLE_2"
+    }
+  ],
+  "instructions": "You are a data assistant for the TODO domain. Answer questions about TODO using SQL queries against the connected tables. Always provide specific numbers and be precise."
+}

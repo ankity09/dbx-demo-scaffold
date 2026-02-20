@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo App</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CSS VARIABLES — Customize these to rebrand the entire app
+   Vibe: Ask the user what color scheme / brand they want, then update these.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  --primary: #1a2332;         /* Main dark — sidebar, headers */
+  --primary-light: #243447;
+  --primary-dark: #111922;
+  --accent: #f59e0b;          /* CTA / highlight color */
+  --accent-hover: #d97706;
+  --green: #10b981;
+  --green-bg: #d1fae5;
+  --red: #ef4444;
+  --red-bg: #fee2e2;
+  --yellow-bg: #fef3c7;
+  --blue: #3b82f6;
+  --blue-bg: #dbeafe;
+  --white: #ffffff;
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --steel: #64748b;
+  --steel-light: #94a3b8;
+  --steel-bg: #f1f5f9;
+  --border: #e2e8f0;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.1);
+  --shadow-lg: 0 4px 12px rgba(0,0,0,.15);
+  --transition-fast: .15s ease;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--steel-bg); color: var(--text); display:flex; height:100vh; overflow:hidden; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYOUT — Vibe replaces this section to match the user's preferred layout.
+   Current: sidebar + topbar (common starting point). Alternatives:
+   - Top nav only (no sidebar)
+   - Dashboard-first with floating chat
+   - Full-screen dashboard with tabs
+   ═══════════════════════════════════════════════════════════════════════════ */
+#sidebar { width: 240px; background: var(--primary); color: #fff; display:flex; flex-direction:column; flex-shrink:0; }
+#sidebar .logo { padding: 20px; border-bottom: 1px solid var(--primary-light); }
+#sidebar .logo h1 { font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+#sidebar .logo span { font-size: 11px; color: var(--steel-light); display:block; margin-top:4px; }
+#sidebar nav { flex:1; padding: 12px 0; }
+#sidebar nav a { display:flex; align-items:center; gap:10px; padding: 10px 20px; color: var(--steel-light); text-decoration:none; font-size:13px; transition: all .15s; border-left: 3px solid transparent; }
+#sidebar nav a:hover { background: var(--primary-light); color:#fff; }
+#sidebar nav a.active { background: var(--primary-light); color:#fff; border-left-color: var(--accent); }
+#sidebar nav a .icon { width:18px; text-align:center; font-size:15px; }
+#sidebar .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--primary-light); font-size: 10px; color: var(--steel); }
+#main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+#topbar { background:#fff; border-bottom:1px solid var(--border); padding:12px 24px; display:flex; align-items:center; justify-content:space-between; }
+#topbar h2 { font-size:18px; font-weight:600; }
+#content { flex:1; overflow-y:auto; padding:24px; }
+.page { display:none; transition:opacity .2s ease; }
+.page.active { display:block; }
+.page.fade-in { animation:pageFadeIn .25s ease forwards; }
+@keyframes pageFadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENT TOOLKIT — Reusable CSS classes. Use freely in any page.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Cards & KPIs ────────────────────────────────────────────────── */
+.kpi-row { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px; }
+.kpi-card { background:#fff; border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); border-top:3px solid var(--primary); transition:opacity .3s ease, transform .3s ease; }
+.kpi-card.accent { border-top-color: var(--accent); }
+.kpi-card.green { border-top-color: var(--green); }
+.kpi-card.red { border-top-color: var(--red); }
+.kpi-card.blue { border-top-color: var(--blue); }
+.kpi-card .kpi-label { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
+.kpi-card .kpi-value { font-size:28px; font-weight:700; margin:6px 0 2px; }
+.kpi-card .kpi-sub { font-size:11px; color:var(--text-muted); }
+.kpi-animate { opacity:0; transform:translateY(8px); }
+.kpi-animate.kpi-visible { opacity:1; transform:translateY(0); }
+.card { background:#fff; border-radius:var(--radius); padding:20px; box-shadow:var(--shadow); margin-bottom:20px; }
+.card h3 { font-size:14px; font-weight:600; margin-bottom:12px; color:var(--primary); }
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+.grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; }
+@media(max-width:900px) { .grid-2,.grid-3 { grid-template-columns:1fr; } }
+
+/* ─── Tables ──────────────────────────────────────────────────────── */
+.tbl-wrap { overflow-x:auto; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { background:var(--steel-bg); color:var(--text-muted); font-weight:600; text-transform:uppercase; font-size:10px; letter-spacing:.5px; padding:10px 12px; text-align:left; position:sticky; top:0; }
+td { padding:10px 12px; border-bottom:1px solid var(--border); }
+tr:hover td { background:#f8fafc; }
+.clickable-row { cursor:pointer; }
+.clickable-row:hover td { background:rgba(59,130,246,.06); transition:background var(--transition-fast); }
+
+/* ─── Badges ──────────────────────────────────────────────────────── */
+.badge { display:inline-block; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+.badge-critical { background:var(--red); color:#fff; }
+.badge-high { background:var(--red-bg); color:#991b1b; }
+.badge-medium { background:var(--yellow-bg); color:#92400e; }
+.badge-low { background:var(--green-bg); color:#065f46; }
+.badge-open { background:var(--accent); color:#fff; }
+.badge-in_progress { background:var(--blue-bg); color:#1d4ed8; }
+.badge-pending_approval { background:var(--yellow-bg); color:#92400e; }
+.badge-approved { background:var(--green-bg); color:#065f46; }
+.badge-resolved { background:var(--green-bg); color:#065f46; }
+.badge-dismissed { background:#f3f4f6; color:#6b7280; }
+.badge-failed { background:var(--red-bg); color:#991b1b; }
+
+/* ─── Buttons ─────────────────────────────────────────────────────── */
+.filter-bar { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center; }
+.filter-bar select, .filter-bar input { padding:7px 10px; border:1px solid var(--border); border-radius:var(--radius); font-size:13px; background:#fff; }
+.btn { padding:8px 16px; border:none; border-radius:var(--radius); font-size:13px; font-weight:600; cursor:pointer; transition:all .15s; }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-secondary { background:var(--primary); color:#fff; }
+.btn-secondary:hover { background:var(--primary-light); }
+.btn-sm { padding:5px 10px; font-size:12px; }
+.btn-blue { background:var(--blue); color:#fff; }
+.btn-blue:hover { background:#2563eb; }
+.btn-green { background:var(--green); color:#fff; }
+.btn-green:hover { background:#059669; }
+.btn-steel { background:var(--steel); color:#fff; }
+.btn-steel:hover { background:var(--primary-light); }
+
+/* ─── Pills ───────────────────────────────────────────────────────── */
+.pill { display:inline-flex; align-items:center; gap:4px; font-size:10px; padding:2px 8px; border-radius:10px; font-weight:500; }
+.pill-blue { background:var(--blue-bg); color:var(--blue); }
+.pill-green { background:var(--green-bg); color:#065f46; }
+.pill-live { position:relative; padding-left:16px; }
+.pill-live::before { content:''; position:absolute; left:6px; top:50%; transform:translateY(-50%); width:6px; height:6px; border-radius:50%; background:var(--green); animation:agentPulse 2s ease-in-out infinite; }
+
+/* ─── Detail Panel (slide-out) ────────────────────────────────────── */
+#detail-panel { position:fixed; top:0; right:-500px; width:480px; height:100vh; background:#fff; box-shadow:-4px 0 20px rgba(0,0,0,.15); z-index:100; transition:right .3s; display:flex; flex-direction:column; }
+#detail-panel.open { right:0; }
+#detail-panel .dp-header { padding:16px 20px; background:var(--primary); color:#fff; display:flex; justify-content:space-between; align-items:center; }
+#detail-panel .dp-header h3 { font-size:15px; }
+#detail-panel .dp-close { background:none; border:none; color:#fff; font-size:20px; cursor:pointer; }
+#detail-panel .dp-body { flex:1; overflow-y:auto; padding:20px; }
+.dp-field { margin-bottom:14px; }
+.dp-field label { font-size:10px; text-transform:uppercase; color:var(--text-muted); letter-spacing:.5px; display:block; margin-bottom:3px; }
+.dp-field .val { font-size:14px; font-weight:500; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STARTER: AI Chat — Full SSE streaming with action cards + follow-ups
+   ═══════════════════════════════════════════════════════════════════════════ */
+#chat-messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px; }
+.chat-msg { max-width:80%; padding:12px 16px; border-radius:12px; font-size:13px; line-height:1.5; }
+.chat-msg.user { align-self:flex-end; background:var(--primary); color:#fff; border-bottom-right-radius:4px; }
+.chat-msg.assistant { align-self:flex-start; background:#fff; border:1px solid var(--border); border-bottom-left-radius:4px; }
+.chat-steps { font-size:11px; color:var(--text-muted); margin-bottom:6px; display:flex; flex-direction:column; gap:4px; }
+.chat-step { display:flex; align-items:center; gap:6px; padding:3px 0; }
+.chat-step .step-icon { width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:9px; flex-shrink:0; }
+.chat-step .step-icon.thinking { background:#e0e7ff; color:#4f46e5; }
+.chat-step .step-icon.agent { background:#dcfce7; color:#16a34a; }
+.chat-step .step-icon.data { background:#fef3c7; color:#d97706; }
+.chat-step .step-icon.done { background:#dcfce7; color:#16a34a; }
+@keyframes pulse { 0%,100% { opacity:.4; } 50% { opacity:1; } }
+.chat-step.active .step-icon { animation: pulse 1.2s ease-in-out infinite; }
+#chat-input-area { padding:16px 20px; border-top:1px solid var(--border); display:flex; gap:8px; background:#fff; }
+#chat-input { flex:1; padding:10px 14px; border:1px solid var(--border); border-radius:var(--radius); font-size:13px; outline:none; }
+#chat-input:focus { border-color:var(--accent); }
+.suggested-prompts { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+.suggested-prompts button { background:#fff; border:1px solid var(--border); border-radius:16px; padding:6px 12px; font-size:11px; cursor:pointer; color:var(--text-muted); transition:all .15s; }
+.suggested-prompts button:hover { border-color:var(--accent); color:var(--text); }
+.chat-action-card { background:var(--steel-bg); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-top:8px; }
+.chat-action-card .ac-header { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.chat-action-card .ac-icon { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+.chat-action-card .ac-title { font-size:12px; font-weight:600; color:var(--text); }
+.chat-action-card .ac-badge { font-size:10px; padding:2px 6px; border-radius:10px; font-weight:500; }
+.chat-action-card .ac-details { display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:11px; color:var(--text-muted); margin-bottom:10px; }
+.chat-action-card .ac-details strong { color:var(--text); font-weight:500; }
+.chat-action-card .ac-buttons { display:flex; gap:6px; }
+.chat-action-card .ac-btn { padding:5px 12px; border-radius:5px; font-size:11px; font-weight:500; border:none; cursor:pointer; transition:all .15s; }
+.chat-action-card .ac-btn.approve { background:var(--green); color:#fff; }
+.chat-action-card .ac-btn.approve:hover { background:#059669; }
+.chat-action-card .ac-btn.escalate { background:var(--accent); color:#fff; }
+.chat-action-card .ac-btn.escalate:hover { background:var(--accent-hover); }
+.chat-action-card .ac-btn.dismiss { background:#fff; color:var(--text-muted); border:1px solid var(--border); }
+.chat-action-card .ac-btn.dismiss:hover { background:var(--red-bg); color:var(--red); border-color:var(--red); }
+.chat-action-card .ac-btn:disabled { opacity:.5; cursor:default; }
+.chat-action-card.resolved { opacity:.7; }
+.chat-action-card.resolved .ac-buttons { display:none; }
+.chat-action-card.resolved .ac-result { font-size:11px; font-weight:500; padding:4px 0; }
+.chat-action-card.resolved .ac-result.approved { color:var(--green); }
+.chat-action-card.resolved .ac-result.dismissed { color:var(--text-muted); }
+.chat-followups { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.chat-followups button { background:#fff; border:1px solid var(--blue); color:var(--blue); border-radius:14px; padding:5px 12px; font-size:11px; cursor:pointer; transition:all .15s; }
+.chat-followups button:hover { background:var(--blue); color:#fff; }
+.typing-indicator { display:inline-flex; gap:4px; padding:8px 12px; align-items:center; }
+.typing-indicator span { width:6px; height:6px; border-radius:50%; background:var(--steel-light); animation:typing-bounce 1.4s ease-in-out infinite; }
+.typing-indicator span:nth-child(2) { animation-delay:.2s; }
+.typing-indicator span:nth-child(3) { animation-delay:.4s; }
+@keyframes typing-bounce { 0%,60%,100% { transform:translateY(0); } 30% { transform:translateY(-6px); } }
+.chat-welcome { background:linear-gradient(135deg,var(--primary) 0%,var(--primary-light) 100%); color:#fff; border-radius:12px; padding:20px 24px; margin:12px 0; }
+.chat-welcome-avatar { width:40px; height:40px; border-radius:10px; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#fff; flex-shrink:0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STARTER: Agent Workflows — Cards, flow diagram, inline AI modal
+   ═══════════════════════════════════════════════════════════════════════════ */
+.agent-status-bar { background:var(--primary); color:#fff; border-radius:var(--radius); padding:14px 20px; display:flex; align-items:center; gap:12px; margin-bottom:20px; font-size:13px; }
+.agent-pulse { width:10px; height:10px; border-radius:50%; background:var(--green); animation:agentPulse 2s ease-in-out infinite; flex-shrink:0; }
+@keyframes agentPulse { 0%,100%{opacity:.4;box-shadow:0 0 0 0 rgba(16,185,129,.4)} 50%{opacity:1;box-shadow:0 0 0 6px rgba(16,185,129,0)} }
+.wf-section { margin-bottom:24px; }
+.wf-section-header { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.wf-section-header .count { background:var(--steel-bg); color:var(--text-muted); border-radius:10px; padding:2px 8px; font-size:10px; }
+.wf-card { background:#fff; border-left:4px solid var(--border); border-radius:var(--radius); padding:16px 20px; margin-bottom:10px; cursor:pointer; box-shadow:var(--shadow); transition:all .15s; }
+.wf-card:hover { box-shadow:var(--shadow-lg); transform:translateY(-1px); }
+.wf-card.critical { border-left-color:var(--red); }
+.wf-card.high { border-left-color:var(--accent); }
+.wf-card.medium { border-left-color:#f59e0b; }
+.wf-card.low { border-left-color:var(--green); }
+.wf-card .wf-card-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+.wf-card .wf-headline { font-size:14px; font-weight:600; flex:1; }
+.wf-card .wf-meta { font-size:11px; color:var(--text-muted); }
+.wf-card .wf-actions { display:flex; gap:6px; margin-top:10px; }
+.agent-filter-btn { background:var(--steel-bg); color:var(--text); border:1px solid var(--border); font-size:11px; padding:4px 12px; border-radius:14px; cursor:pointer; transition:all .15s; }
+.agent-filter-btn:hover { background:var(--primary-light); color:#fff; border-color:var(--primary-light); }
+.agent-filter-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.nav-badge { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; border-radius:8px; background:var(--red); color:#fff; font-size:9px; font-weight:700; margin-left:auto; }
+
+/* ─── Agent Flow Diagram ─────────────────────────────────────────── */
+.af-wrapper { margin-top:20px; }
+.af-wrapper > label { font-size:10px; text-transform:uppercase; color:var(--text-muted); letter-spacing:.5px; font-weight:700; display:block; margin-bottom:12px; }
+.af-diagram { position:relative; display:flex; flex-direction:column; align-items:center; gap:0; }
+.af-row { display:flex; justify-content:center; }
+.af-row-agents { display:flex; justify-content:center; gap:6px; flex-wrap:nowrap; }
+.af-node { display:flex; flex-direction:column; align-items:center; justify-content:center;
+  border-radius:8px; padding:6px 10px; text-align:center; min-height:44px;
+  opacity:0; transform:scale(0.92); transition:opacity 0.25s ease, transform 0.25s ease; }
+.af-node.visible { opacity:1; transform:scale(1); }
+.af-node .af-label { font-size:11px; font-weight:600; line-height:1.2; }
+.af-node .af-sub { font-size:9px; line-height:1.2; margin-top:2px; opacity:0.85; }
+.af-trigger { background:var(--accent); color:#fff; width:180px; }
+.af-supervisor { background:var(--primary); color:#fff; width:200px; }
+.af-agent-active { background:var(--green); color:#fff; width:96px; cursor:default; position:relative; }
+.af-agent-inactive { background:var(--steel-bg); color:var(--steel); width:96px; border:1.5px dashed var(--steel-light); position:relative; }
+.af-outcome { background:var(--green-bg); color:var(--green); width:220px; border:1.5px solid var(--green); }
+.af-svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+.af-gap { height:32px; width:100%; }
+.af-node .af-tooltip { display:none; position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%);
+  width:260px; background:var(--primary); color:#fff; font-size:11px; line-height:1.5; padding:10px 12px;
+  border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,.25); z-index:20; text-align:left; pointer-events:none; }
+.af-node .af-tooltip::after { content:''; position:absolute; top:100%; left:50%; transform:translateX(-50%);
+  border:6px solid transparent; border-top-color:var(--primary); }
+.af-node:hover .af-tooltip { display:block; }
+
+/* ─── Modal Overlay ──────────────────────────────────────────────── */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:150; display:flex; align-items:center; justify-content:center; }
+.modal-content { width:1400px; max-width:96vw; height:92vh; max-height:92vh; border-radius:12px; background:#fff; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.3); }
+.modal-header { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.modal-header h3 { font-size:16px; font-weight:600; margin:0; }
+.modal-header button { background:none; border:none; font-size:22px; cursor:pointer; color:var(--text-muted); padding:0 4px; }
+.modal-header button:hover { color:var(--text); }
+.modal-body { flex:1; overflow-y:auto; padding:24px; }
+.modal-footer { padding:14px 24px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+.modal-two-col { display:flex; gap:32px; }
+.modal-col-left { flex:1; min-width:0; }
+.modal-col-right { width:540px; flex-shrink:0; }
+.ai-panel { margin-top:20px; border-top:1px solid var(--border); padding-top:16px; }
+.ai-panel-label { font-size:10px; text-transform:uppercase; color:var(--text-muted); letter-spacing:.5px; font-weight:700; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+.ai-panel-spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--blue-bg); border-top-color:var(--blue); border-radius:50%; animation:ai-spin .8s linear infinite; }
+.ai-panel-steps { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.ai-panel-step { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--text-muted); background:var(--steel-bg); padding:3px 8px; border-radius:10px; }
+.ai-panel-step.active { color:var(--blue); background:var(--blue-bg); }
+.ai-panel-answer { font-size:13px; line-height:1.65; color:var(--text); overflow-y:auto; flex:1; }
+.ai-panel-answer:empty { display:none; }
+
+/* ─── Utilities ──────────────────────────────────────────────────── */
+.pagination { display:flex; align-items:center; justify-content:center; gap:12px; margin-top:16px; }
+.pagination .info { font-size:12px; color:var(--text-muted); }
+#flash { position:fixed; top:16px; right:16px; z-index:200; }
+.flash-msg { background:var(--green); color:#fff; padding:10px 16px; border-radius:var(--radius); font-size:13px; box-shadow:var(--shadow-lg); margin-bottom:8px; animation:flashIn .3s; }
+.flash-msg.error { background:var(--red); }
+@keyframes flashIn { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+.loading { text-align:center; padding:40px; color:var(--text-muted); font-size:13px; }
+.skeleton { display:flex; flex-direction:column; gap:10px; padding:20px; }
+.sk-row { height:14px; background:var(--border); border-radius:4px; animation:sk-pulse 1.5s ease-in-out infinite; }
+.sk-row:nth-child(1) { width:95%; }
+.sk-row:nth-child(2) { width:80%; }
+.sk-row:nth-child(3) { width:88%; }
+.sk-row:nth-child(4) { width:65%; }
+@keyframes sk-pulse { 0%,100% { opacity:0.4; } 50% { opacity:0.8; } }
+@keyframes ai-spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     LAYOUT — Vibe: Rebuild this to match user's preferred layout & branding.
+     This is a minimal sidebar+topbar placeholder. Replace with whatever
+     the user wants (top nav, dashboard-first, dark theme, etc.)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div id="sidebar">
+  <div class="logo">
+    <h1>DEMO</h1>
+    <span>Command Center</span>
+  </div>
+  <nav>
+    <!-- Vibe: Add domain pages (dashboard, inventory, etc.) as the user requests -->
+    <a href="#" data-page="chat" class="active"><span class="icon"><i data-lucide="message-circle" style="width:16px;height:16px"></i></span> AI Chat</a>
+    <a href="#" data-page="agent" id="nav-agent"><span class="icon"><i data-lucide="bot" style="width:16px;height:16px"></i></span> Agent Workflows <span class="nav-badge" id="agent-nav-badge" style="display:none">0</span></a>
+  </nav>
+  <div class="sidebar-footer">Databricks App</div>
+</div>
+
+<div id="main">
+  <div id="topbar">
+    <h2 id="page-title">AI Chat</h2>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="pill pill-green pill-live">System Live</span>
+    </div>
+  </div>
+  <div id="content">
+
+    <!-- ═══ Starter Page: AI Chat ═══ -->
+    <div id="page-chat" class="page active" style="display:flex;height:calc(100vh - 60px);flex-direction:column;">
+      <div class="suggested-prompts" id="chat-prompts"></div>
+      <div id="chat-messages" style="flex:1;overflow-y:auto;"></div>
+      <div id="chat-input-area">
+        <input id="chat-input" placeholder="Ask the AI advisor..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="btn btn-primary" onclick="sendChat()">Send</button>
+      </div>
+    </div>
+
+    <!-- ═══ Starter Page: Agent Workflows ═══ -->
+    <div id="page-agent" class="page">
+      <div class="agent-status-bar">
+        <div class="agent-pulse"></div>
+        <div><strong>AI Agent</strong> <span id="agent-last-run" style="opacity:.7">Active</span></div>
+        <div style="margin-left:auto;opacity:.7">Proactive Monitor</div>
+      </div>
+      <div class="kpi-row" id="agent-kpis"></div>
+      <div id="agent-filters" style="display:flex;gap:8px;margin:12px 0 4px;align-items:center;">
+        <span style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Filter:</span>
+        <button class="btn btn-sm agent-filter-btn active" data-wf-filter="all" onclick="filterAgentWorkflows('all')">All</button>
+        <!-- Vibe: Add workflow type filter buttons here -->
+      </div>
+      <div class="wf-section" id="agent-pending"></div>
+      <div class="wf-section" id="agent-resolved"></div>
+      <div class="wf-section" id="agent-activity"></div>
+    </div>
+
+    <!-- Vibe: Add domain pages here (dashboard, inventory, etc.) -->
+
+  </div>
+</div>
+
+<!-- ═══ Detail Panel ═══ -->
+<div id="detail-panel">
+  <div class="dp-header"><h3 id="dp-title">Detail</h3><button class="dp-close" onclick="closeDetail()">&times;</button></div>
+  <div class="dp-body" id="dp-body"></div>
+</div>
+
+<!-- ═══ Workflow Modal ═══ -->
+<div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="modal-title"></h3><button onclick="closeModal()">&times;</button></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- ═══ Flash ═══ -->
+<div id="flash"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   REUSABLE JS UTILITIES — These work with any layout / page structure
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ─── API Helpers ──────────────────────────────────────────────────────────
+async function fetchApi(path) {
+  const r = await fetch(path);
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+async function postApi(path, body) {
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+async function patchApi(path, body) {
+  const r = await fetch(path, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  if (!r.ok) throw new Error(`API ${r.status}`);
+  return r.json();
+}
+
+// ─── Formatting ──────────────────────────────────────────────────────────
+function fmt(n, d=0) { return n == null ? '\u2014' : Number(n).toLocaleString(undefined, {minimumFractionDigits:d, maximumFractionDigits:d}); }
+function fmtUsd(n) { return n == null ? '\u2014' : '$'+Number(n).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0}); }
+function fmtPct(n) { return n == null ? '\u2014' : n+'%'; }
+function statusBadge(s) { return `<span class="badge badge-${(s||'').replace(/\s/g,'-')}">${s||'\u2014'}</span>`; }
+function severityBadge(s) { return `<span class="badge badge-${s}">${s}</span>`; }
+function timeAgo(iso) {
+  if (!iso) return '\u2014';
+  const d = new Date(iso), now = new Date(), diff = (now-d)/1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff/60)+'m ago';
+  if (diff < 86400) return Math.floor(diff/3600)+'h ago';
+  return Math.floor(diff/86400)+'d ago';
+}
+
+// ─── Text Utilities ──────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function formatMd(s) {
+  return s
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/`(.*?)`/g, '<code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:12px;">$1</code>')
+    .replace(/\n/g, '<br>');
+}
+
+// ─── Flash Messages ──────────────────────────────────────────────────────
+function showFlash(msg, isError=false) {
+  const el = document.getElementById('flash');
+  const div = document.createElement('div');
+  div.className = 'flash-msg' + (isError?' error':'');
+  div.textContent = msg;
+  el.appendChild(div);
+  setTimeout(()=>div.remove(), 3000);
+}
+
+// ─── Navigation ──────────────────────────────────────────────────────────
+// Vibe: Add domain pages to PAGES and PAGE_TITLES when you create them
+const PAGES = ['chat','agent'];
+const PAGE_TITLES = {
+  chat:  'AI Chat',
+  agent: 'Agent Workflows',
+};
+
+function navigate(page) {
+  PAGES.forEach(p => {
+    const pel = document.getElementById('page-'+p);
+    if (!pel) return;
+    pel.classList.remove('active', 'fade-in');
+    pel.style.display = 'none';
+  });
+  const el = document.getElementById('page-'+page);
+  if (!el) return;
+  el.classList.add('active');
+  el.style.display = page === 'chat' ? 'flex' : 'block';
+  requestAnimationFrame(() => el.classList.add('fade-in'));
+  document.getElementById('page-title').textContent = PAGE_TITLES[page]||page;
+  document.querySelectorAll('#sidebar nav a').forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  closeDetail();
+  // Vibe: Add page loader calls here (e.g., if (page === 'dashboard') loadDashboard();)
+  if (page === 'chat') loadChat();
+  else if (page === 'agent') loadAgentPage();
+}
+
+document.querySelectorAll('#sidebar nav a').forEach(a => {
+  a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
+});
+
+// ─── Detail Panel ────────────────────────────────────────────────────────
+function openDetail(title, html) {
+  document.getElementById('dp-title').textContent = title;
+  document.getElementById('dp-body').innerHTML = html;
+  document.getElementById('detail-panel').classList.add('open');
+}
+function closeDetail() { document.getElementById('detail-panel').classList.remove('open'); }
+
+// ─── Modal ───────────────────────────────────────────────────────────────
+function openModal(title, bodyHtml, footerHtml) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = bodyHtml;
+  document.getElementById('modal-footer').innerHTML = footerHtml || '';
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+
+// ─── Skeleton Loaders ────────────────────────────────────────────────────
+function showSkeleton(id, rows=4) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '<div class="skeleton">' + Array.from({length:rows}, ()=>'<div class="sk-row"></div>').join('') + '</div>';
+}
+function showTableSkeleton(id, cols=5, rows=6) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const hdr = '<tr>' + Array.from({length:cols}, ()=>'<th><div class="sk-cell" style="width:80%;height:10px"></div></th>').join('') + '</tr>';
+  const body = Array.from({length:rows}, ()=>'<tr>' +
+    Array.from({length:cols}, ()=>'<td><div class="sk-cell" style="width:'+Math.round(50+Math.random()*40)+'%"></div></td>').join('') +
+  '</tr>').join('');
+  el.innerHTML = `<table class="tbl-skeleton"><thead>${hdr}</thead><tbody>${body}</tbody></table>`;
+}
+
+// ─── KPI Entrance Animation ──────────────────────────────────────────────
+function animateKPIs(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const cards = container.querySelectorAll('.kpi-card');
+  cards.forEach((card, i) => {
+    card.classList.add('kpi-animate');
+    setTimeout(() => card.classList.add('kpi-visible'), 60 + i * 80);
+  });
+}
+
+// ─── Agent Nav Badge ─────────────────────────────────────────────────────
+function updateAgentBadge(count) {
+  const badge = document.getElementById('agent-nav-badge');
+  if (badge) {
+    if (count > 0) { badge.textContent = count; badge.style.display = ''; }
+    else { badge.style.display = 'none'; }
+  }
+}
+
+// ─── Agent Name Formatter ────────────────────────────────────────────────
+// Vibe: Add your MAS agent name mappings here
+function formatAgentName(name) {
+  const shortName = name.includes('__') ? name.split('__').pop() : name;
+  const map = {};
+  return map[shortName] || map[name] || shortName.replace(/[-_]/g, ' ');
+}
+
+// ─── Navigate to Chat with a Prompt ──────────────────────────────────────
+function sendChatPrompt(text) {
+  document.getElementById('chat-input').value = text;
+  sendChat();
+}
+function askAI(prompt) {
+  navigate('chat');
+  setTimeout(() => { sendChatPrompt(prompt); }, 150);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STARTER: SSE Chat — Full streaming with action cards + follow-ups
+   Do NOT modify this section unless you need to change the SSE protocol.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML += `<div class="chat-msg user">${escHtml(msg)}</div>`;
+
+  const container = document.createElement('div');
+  container.className = 'chat-msg assistant';
+  container.innerHTML = `<div class="typing-indicator" id="chat-typing"><span></span><span></span><span></span></div><div class="chat-steps" id="chat-steps" style="display:none"></div><div id="chat-answer"></div>`;
+  msgs.appendChild(container);
+
+  const typingEl = container.querySelector('#chat-typing');
+  const stepsEl = container.querySelector('#chat-steps');
+  const answerEl = container.querySelector('#chat-answer');
+  let _typingRemoved = false;
+  function removeTyping() {
+    if (!_typingRemoved && typingEl) { typingEl.remove(); stepsEl.style.display = ''; _typingRemoved = true; }
+  }
+
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: msg}),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let answerText = '';
+    let thinkingText = '';
+    let lastAgentStep = null;
+    let hasSubAgents = false;
+    let maxStep = 0;
+
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6);
+        if (raw === '[DONE]') continue;
+        let evt;
+        try { evt = JSON.parse(raw); } catch { continue; }
+        const step = evt.step || 0;
+        if (step > maxStep) maxStep = step;
+
+        if (evt.type === 'tool_call') {
+          hasSubAgents = true;
+          removeTyping();
+          deactivateSteps(stepsEl);
+          addStep(stepsEl, 'agent', `Querying ${formatAgentName(evt.agent)}...`, true);
+          lastAgentStep = evt.agent;
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+        else if (evt.type === 'agent_switch') {
+          deactivateSteps(stepsEl);
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+        else if (evt.type === 'sub_result') {
+          deactivateSteps(stepsEl);
+          const label = lastAgentStep ? formatAgentName(lastAgentStep) : 'sub-agent';
+          addStep(stepsEl, 'data', `Received data from ${label}`, false);
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+        else if (evt.type === 'delta') {
+          removeTyping();
+          if (step <= 1 && !hasSubAgents && answerText === '') {
+            thinkingText += evt.text;
+          } else {
+            answerText += evt.text;
+            answerEl.innerHTML = formatMd(answerText);
+            msgs.scrollTop = msgs.scrollHeight;
+          }
+        }
+        else if (evt.type === 'action_card') {
+          answerEl.insertAdjacentHTML('beforeend', renderActionCard(evt));
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+        else if (evt.type === 'suggested_actions') {
+          answerEl.insertAdjacentHTML('beforeend', renderFollowups(evt.actions || []));
+          msgs.scrollTop = msgs.scrollHeight;
+        }
+        else if (evt.type === 'error') {
+          answerEl.innerHTML = `<span style="color:var(--red)">Error: ${escHtml(evt.text)}</span>`;
+        }
+      }
+    }
+
+    deactivateSteps(stepsEl);
+    if (!answerText && thinkingText) {
+      answerText = thinkingText;
+      answerEl.innerHTML = formatMd(answerText);
+      stepsEl.innerHTML = '';
+    }
+    if (!answerText) answerEl.innerHTML = '<span style="color:var(--text-muted)">No response</span>';
+
+  } catch(e) {
+    answerEl.innerHTML = `<span style="color:var(--red)">Error: ${e.message}</span>`;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ─── Action Card Renderer ────────────────────────────────────────────────
+// Vibe: Customize renderActionCard() for your domain's card_types and detail fields
+function renderActionCard(evt) {
+  const id = evt.entity_id || 0;
+  const d = evt.details || {};
+  const badgeClass = d.status === 'draft' ? 'badge-pending_approval' : d.status === 'open' ? 'badge-open' : 'badge-in_progress';
+
+  let detailsHtml = Object.entries(d).filter(([k]) => k !== 'status').map(([k, v]) =>
+    `<div><strong>${escHtml(k)}:</strong> ${escHtml(v)}</div>`
+  ).join('');
+
+  const btnHtml = (evt.actions || []).map(a => {
+    if (a === 'approve') return `<button class="ac-btn approve" onclick="handleActionCard(this,'${evt.card_type}',${id},'approve')">Approve</button>`;
+    if (a === 'dismiss') return `<button class="ac-btn dismiss" onclick="handleActionCard(this,'${evt.card_type}',${id},'dismiss')">Dismiss</button>`;
+    if (a === 'escalate') return `<button class="ac-btn escalate" onclick="handleActionCard(this,'${evt.card_type}',${id},'escalate')">Escalate</button>`;
+    return '';
+  }).join('');
+
+  return `<div class="chat-action-card" data-card-id="${evt.card_type}-${id}">
+    <div class="ac-header">
+      <span class="ac-title">${escHtml(evt.title || '')}</span>
+      <span class="ac-badge ${badgeClass}">${escHtml(d.status || '')}</span>
+    </div>
+    <div class="ac-details">${detailsHtml}</div>
+    <div class="ac-buttons">${btnHtml}</div>
+  </div>`;
+}
+
+function renderFollowups(actions) {
+  if (!actions.length) return '';
+  const btns = actions.map(a =>
+    `<button onclick="sendChatPrompt('${escHtml(a.prompt)}')">${escHtml(a.label)}</button>`
+  ).join('');
+  return `<div class="chat-followups">${btns}</div>`;
+}
+
+// Vibe: Update handleActionCard URLs to match your backend API routes
+async function handleActionCard(btn, cardType, entityId, action) {
+  const card = btn.closest('.chat-action-card');
+  card.querySelectorAll('.ac-btn').forEach(b => b.disabled = true);
+  btn.textContent = 'Processing...';
+  try {
+    const url = `/api/${cardType}s/${entityId}`;
+    const body = {status: action === 'approve' ? 'approved' : action === 'escalate' ? 'escalated' : 'dismissed'};
+    await fetch(url, { method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+    card.classList.add('resolved');
+    const label = action === 'approve' ? 'Approved' : action === 'escalate' ? 'Escalated' : 'Dismissed';
+    const cls = action === 'dismiss' ? 'dismissed' : 'approved';
+    card.insertAdjacentHTML('beforeend', `<div class="ac-result ${cls}">\u2714 ${label} successfully</div>`);
+  } catch(e) {
+    btn.textContent = 'Failed';
+    btn.style.background = 'var(--red)';
+    btn.style.color = '#fff';
+  }
+}
+
+function addStep(container, type, label, active) {
+  const el = document.createElement('div');
+  el.className = 'chat-step' + (active ? ' active' : '');
+  const icons = {thinking: '\u2726', agent: '\u25B6', data: '\u2714', done: '\u2714'};
+  el.innerHTML = `<span class="step-icon ${type}">${icons[type]||'\u2726'}</span><span class="step-label">${escHtml(label)}</span>`;
+  container.appendChild(el);
+}
+
+function deactivateSteps(container) {
+  container.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STARTER: AI Chat — Load + Welcome
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// Vibe: Customize suggested prompts for your domain
+const SUGGESTED = [
+  "What needs my attention right now?",
+  "Show me the key metrics and trends.",
+  "What anomalies should I be aware of?",
+  "Generate a summary report.",
+];
+
+function loadChat() {
+  const el = document.getElementById('chat-prompts');
+  el.innerHTML = SUGGESTED.map(s => `<button onclick="sendChatPrompt(this.textContent)">${s}</button>`).join('');
+
+  if (!document.getElementById('chat-messages').children.length) {
+    // Vibe: Customize the welcome card for your domain
+    document.getElementById('chat-messages').innerHTML = `
+      <div class="chat-welcome">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+          <div class="chat-welcome-avatar">D</div>
+          <div>
+            <div style="font-size:15px;font-weight:700">AI Advisor</div>
+            <div style="font-size:11px;opacity:.7;margin-top:2px">
+              <span class="pill" style="background:rgba(255,255,255,.15);color:rgba(255,255,255,.9);font-size:9px">Multi-Agent</span>
+              Powered by Databricks
+            </div>
+          </div>
+        </div>
+        <div style="font-size:13px;line-height:1.6;opacity:.9">
+          I can analyze your data, answer questions, and take actions on your behalf.
+          Ask me anything.
+        </div>
+      </div>`;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STARTER: Agent Workflows — KPIs, cards, flow diagram, modal
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+let _agentWorkflows = [];
+let _agentFilter = 'all';
+
+function filterAgentWorkflows(type) {
+  _agentFilter = type;
+  document.querySelectorAll('.agent-filter-btn').forEach(b => b.classList.toggle('active', b.dataset.wfFilter === type));
+  renderAgentSections(_agentWorkflows, type);
+}
+
+function renderAgentSections(workflows, filter) {
+  const filtered = filter === 'all' ? workflows : workflows.filter(w => w.workflow_type === filter);
+  const pending = filtered.filter(w => w.status === 'pending_approval' || w.status === 'in_progress');
+  const resolved = filtered.filter(w => w.status === 'approved' || w.status === 'dismissed' || w.status === 'failed');
+
+  document.getElementById('agent-pending').innerHTML = `
+    <div class="wf-section-header">Needs Your Approval <span class="count">${pending.length}</span></div>
+    ${pending.length ? pending.map(wf => renderWfCard(wf, true)).join('') : '<div class="loading" style="padding:20px">No pending workflows -- all clear.</div>'}
+  `;
+  document.getElementById('agent-resolved').innerHTML = `
+    <div class="wf-section-header">Completed <span class="count">${resolved.length}</span></div>
+    ${resolved.length ? resolved.map(wf => renderWfCard(wf, false)).join('') : '<div class="loading" style="padding:20px">No completed workflows yet.</div>'}
+  `;
+}
+
+function renderWfCard(wf, showActions) {
+  // Vibe: Add your workflow type labels here
+  const TYPE_LABELS = {};
+  const typeBadge = `<span class="badge badge-${wf.workflow_type}">${TYPE_LABELS[wf.workflow_type]||wf.workflow_type}</span>`;
+  const actions = showActions && wf.status === 'pending_approval' ? `
+    <div class="wf-actions">
+      <button class="btn btn-sm btn-green" onclick="event.stopPropagation();approveWorkflow(${wf.workflow_id})">Approve</button>
+      <button class="btn btn-sm btn-steel" onclick="event.stopPropagation();dismissWorkflow(${wf.workflow_id})">Dismiss</button>
+    </div>` : '';
+  return `
+    <div class="wf-card ${wf.severity}" onclick="openWorkflowModal(${wf.workflow_id})">
+      <div class="wf-card-top">
+        <span class="wf-headline">${escHtml(wf.headline || wf.summary?.substring(0,80) || 'Workflow')}</span>
+        ${severityBadge(wf.severity)}
+        ${typeBadge}
+        <span class="badge badge-${wf.status}">${(wf.status||'').replace(/_/g,' ')}</span>
+      </div>
+      <div class="wf-meta">${wf.entity_type||''} ${wf.entity_id||''} &middot; ${wf.trigger_source||''} &middot; ${timeAgo(wf.created_at)}</div>
+      ${actions}
+    </div>`;
+}
+
+async function approveWorkflow(id) {
+  try {
+    await patchApi('/api/workflows/' + id, {status: 'approved'});
+    showFlash('Workflow approved');
+    closeModal();
+    const agentPage = document.getElementById('page-agent');
+    if (agentPage && agentPage.classList.contains('active')) loadAgentPage();
+  } catch(e) { showFlash('Failed to approve workflow', true); }
+}
+
+async function dismissWorkflow(id) {
+  try {
+    await patchApi('/api/workflows/' + id, {status: 'dismissed'});
+    showFlash('Workflow dismissed');
+    closeModal();
+    const agentPage = document.getElementById('page-agent');
+    if (agentPage && agentPage.classList.contains('active')) loadAgentPage();
+  } catch(e) { showFlash('Failed to dismiss workflow', true); }
+}
+
+// ─── Agent Flow Diagram ──────────────────────────────────────────────────
+// Vibe: Define your domain-specific agents and workflow-to-agent mapping
+const DOMAIN_AGENTS = [
+  {key: 'data_query',     label: 'Data Query',     subtitle: 'Genie Space',  detail: 'Queries structured data via natural language.'},
+  {key: 'knowledge_base', label: 'Knowledge Base',  subtitle: 'Documents',   detail: 'Retrieves domain knowledge from the Knowledge Assistant.'},
+  {key: 'database_writer',label: 'Database',        subtitle: 'Write ops',   detail: 'Creates and updates operational records in Lakebase.'},
+];
+
+const WORKFLOW_AGENTS = {
+  // 'my_workflow_type': ['data_query', 'knowledge_base', 'database_writer'],
+};
+
+function buildDomainAgentFlow(wf) {
+  const activeKeys = WORKFLOW_AGENTS[wf.workflow_type] || ['data_query', 'database_writer'];
+  return {
+    trigger: {label: 'Proactive Monitor', subtitle: wf.trigger_source || 'Scheduled scan'},
+    supervisor: {label: 'MAS Supervisor', subtitle: 'Multi-Agent System'},
+    agents: DOMAIN_AGENTS.map(a => ({label: a.label, subtitle: a.subtitle, detail: a.detail, active: activeKeys.includes(a.key)})),
+    outcome: {label: (wf.workflow_type || 'workflow').replace(/_/g, ' '), subtitle: wf.entity_type ? `${wf.entity_type} ${wf.entity_id||''}` : 'Action taken'},
+  };
+}
+
+function renderAgentFlowDiagram(flow) {
+  const node = (cls, label, sub, idx, detail) => {
+    const tooltip = detail ? `<div class="af-tooltip"><strong>${escHtml(label)}</strong><br>${escHtml(detail)}</div>` : '';
+    return `<div class="af-node ${cls}" data-af-idx="${idx}">${tooltip}<span class="af-label">${escHtml(label)}</span><span class="af-sub">${escHtml(sub)}</span></div>`;
+  };
+  const agents = [...flow.agents].sort((a, b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+  let idx = 0;
+  return `<div class="af-wrapper">
+    <label>Agent Orchestration</label>
+    <div class="af-diagram" id="af-diagram">
+      <div class="af-row">${node('af-trigger', flow.trigger.label, flow.trigger.subtitle, idx++)}</div>
+      <div class="af-gap" data-af-gap="trigger-sup"></div>
+      <div class="af-row">${node('af-supervisor', flow.supervisor.label, flow.supervisor.subtitle, idx++)}</div>
+      <div class="af-gap" data-af-gap="sup-agents"></div>
+      <div class="af-row-agents">${agents.map(a => node(a.active ? 'af-agent-active' : 'af-agent-inactive', a.label, a.subtitle, idx++, a.detail || '')).join('')}</div>
+      <div class="af-gap" data-af-gap="agents-outcome"></div>
+      <div class="af-row">${node('af-outcome', flow.outcome.label, flow.outcome.subtitle, idx++)}</div>
+      <svg class="af-svg" id="af-svg"></svg>
+    </div>
+  </div>`;
+}
+
+function drawFlowConnectors() {
+  const diagram = document.getElementById('af-diagram');
+  const svg = document.getElementById('af-svg');
+  if (!diagram || !svg) return;
+  const rect = diagram.getBoundingClientRect();
+  svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+  svg.innerHTML = '';
+  const nodes = diagram.querySelectorAll('.af-node');
+  if (nodes.length < 3) return;
+  const pos = el => { const r = el.getBoundingClientRect(); return { cx: r.left - rect.left + r.width / 2, top: r.top - rect.top, bottom: r.top - rect.top + r.height }; };
+  const trigger = nodes[0], sup = nodes[1], outcome = nodes[nodes.length - 1];
+  const agentNodes = Array.from(nodes).slice(2, -1);
+  const tPos = pos(trigger), sPos = pos(sup), oPos = pos(outcome);
+  svg.innerHTML += `<line x1="${tPos.cx}" y1="${tPos.bottom}" x2="${sPos.cx}" y2="${sPos.top}" stroke="var(--accent)" stroke-width="1.5"/>`;
+  agentNodes.forEach(an => {
+    const aPos = pos(an);
+    const isActive = an.classList.contains('af-agent-active');
+    const color = isActive ? 'var(--green)' : 'var(--steel-light)';
+    const dash = isActive ? '' : 'stroke-dasharray="4 3"';
+    const opacity = isActive ? '1' : '0.4';
+    const midY = (sPos.bottom + aPos.top) / 2;
+    svg.innerHTML += `<path d="M${sPos.cx},${sPos.bottom} C${sPos.cx},${midY} ${aPos.cx},${midY} ${aPos.cx},${aPos.top}" fill="none" stroke="${color}" stroke-width="1.5" ${dash} opacity="${opacity}"/>`;
+  });
+  if (agentNodes.length) {
+    const midX = rect.width / 2;
+    const agentBottom = Math.max(...agentNodes.map(n => pos(n).bottom));
+    svg.innerHTML += `<line x1="${midX}" y1="${agentBottom}" x2="${oPos.cx}" y2="${oPos.top}" stroke="var(--green)" stroke-width="1.5"/>`;
+  }
+}
+
+function triggerFlowAnimation() {
+  const nodes = document.querySelectorAll('#af-diagram [data-af-idx]');
+  const sorted = Array.from(nodes).sort((a, b) => +a.dataset.afIdx - +b.dataset.afIdx);
+  sorted.forEach((el, i) => {
+    setTimeout(() => {
+      el.classList.add('visible');
+      if (i === 1 || i === sorted.length - 1) setTimeout(drawFlowConnectors, 60);
+    }, 80 + i * 200);
+  });
+}
+
+// ─── Inline AI Analysis (in modal) ───────────────────────────────────────
+let _aiAbort = null;
+async function askAIInline(btn, prompt) {
+  if (_aiAbort) { _aiAbort.abort(); _aiAbort = null; }
+  btn.disabled = true;
+  btn.textContent = 'Analyzing...';
+  const panel = document.getElementById('ai-panel');
+  const labelEl = document.getElementById('ai-panel-label');
+  const stepsEl = document.getElementById('ai-panel-steps');
+  const answerEl = document.getElementById('ai-panel-answer');
+  panel.style.display = '';
+  labelEl.innerHTML = '<span>AI Analysis</span><span class="ai-panel-spinner"></span>';
+  stepsEl.innerHTML = '';
+  answerEl.innerHTML = '';
+  _aiAbort = new AbortController();
+  const signal = _aiAbort.signal;
+  const timer = setTimeout(() => _aiAbort.abort(), 300000);
+  try {
+    const resp = await fetch('/api/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: prompt}), signal,
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', answerText = '', shownAgents = new Set();
+    while (true) {
+      const {done, value} = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, {stream: true});
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6);
+        if (raw === '[DONE]') continue;
+        let evt;
+        try { evt = JSON.parse(raw); } catch { continue; }
+        if (evt.type === 'tool_call' || evt.type === 'agent_switch') {
+          const label = formatAgentName(evt.agent);
+          if (!shownAgents.has(label)) {
+            shownAgents.add(label);
+            stepsEl.querySelectorAll('.active').forEach(e => e.classList.remove('active'));
+            stepsEl.insertAdjacentHTML('beforeend', `<div class="ai-panel-step active"><span>\u25B6 ${escHtml(label)}</span></div>`);
+          }
+        } else if (evt.type === 'sub_result') {
+          stepsEl.querySelectorAll('.active').forEach(e => e.classList.remove('active'));
+        } else if (evt.type === 'delta') {
+          stepsEl.querySelectorAll('.active').forEach(e => e.classList.remove('active'));
+          answerText += evt.text;
+          answerEl.innerHTML = formatMd(answerText);
+          answerEl.scrollTop = answerEl.scrollHeight;
+        } else if (evt.type === 'error') {
+          answerEl.innerHTML = `<span style="color:var(--red)">Error: ${escHtml(evt.text)}</span>`;
+        }
+      }
+    }
+    stepsEl.querySelectorAll('.active').forEach(e => e.classList.remove('active'));
+    if (!answerText) answerEl.innerHTML = '<span style="color:var(--text-muted)">No additional analysis available.</span>';
+  } catch(e) {
+    if (e.name === 'AbortError') answerEl.innerHTML = '<span style="color:var(--text-muted)">Analysis timed out.</span>';
+    else answerEl.innerHTML = `<span style="color:var(--red)">Error: ${escHtml(e.message)}</span>`;
+  }
+  clearTimeout(timer);
+  _aiAbort = null;
+  labelEl.innerHTML = 'AI Analysis';
+  btn.textContent = 'Ask AI';
+  btn.disabled = false;
+}
+
+// ─── Workflow Modal ──────────────────────────────────────────────────────
+async function openWorkflowModal(id) {
+  try {
+    const wf = await fetchApi('/api/workflows/' + id);
+    const summary = wf.enriched_summary || wf.summary || '\u2014';
+    const TYPE_LABELS = {};
+
+    let left = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+        <div class="dp-field"><label>Type</label><div class="val"><span class="badge badge-${wf.workflow_type}">${TYPE_LABELS[wf.workflow_type]||wf.workflow_type}</span></div></div>
+        <div class="dp-field"><label>Severity</label><div class="val">${severityBadge(wf.severity)}</div></div>
+        <div class="dp-field"><label>Trigger</label><div class="val">${wf.trigger_source||'\u2014'}</div></div>
+        <div class="dp-field"><label>Entity</label><div class="val">${wf.entity_type||'\u2014'} ${wf.entity_id||''}</div></div>
+      </div>
+      <div class="dp-field"><label>Summary</label><div class="val" style="font-size:13px;line-height:1.6">${escHtml(summary)}</div></div>
+      <div style="margin-top:16px;font-size:11px;color:var(--text-muted)">Created: ${wf.created_at||'\u2014'}${wf.completed_at ? ' &middot; Completed: '+wf.completed_at : ''}</div>
+      <div class="ai-panel" id="ai-panel" style="display:none">
+        <div class="ai-panel-label" id="ai-panel-label">AI Analysis</div>
+        <div class="ai-panel-steps" id="ai-panel-steps"></div>
+        <div class="ai-panel-answer" id="ai-panel-answer"></div>
+      </div>`;
+
+    const flow = wf.agent_flow || buildDomainAgentFlow(wf);
+    const right = renderAgentFlowDiagram(flow);
+    const body = `<div class="modal-two-col"><div class="modal-col-left">${left}</div><div class="modal-col-right">${right}</div></div>`;
+
+    const aiPrompt = `Workflow #${wf.workflow_id} (${TYPE_LABELS[wf.workflow_type]||wf.workflow_type}): ${(summary).substring(0,200)}. Provide a data-driven analysis and recommended next steps.`;
+    let footer = '';
+    if (wf.status === 'pending_approval') {
+      footer = `<button class="btn btn-primary" onclick="approveWorkflow(${wf.workflow_id})">Approve</button>
+        <button class="btn btn-secondary" onclick="dismissWorkflow(${wf.workflow_id})">Dismiss</button>`;
+    }
+    footer += `<button class="btn btn-sm btn-blue" id="btn-ask-ai" onclick="askAIInline(this, '${aiPrompt.replace(/'/g, "\\'")}')">Ask AI</button>`;
+
+    openModal('Workflow #' + wf.workflow_id, body, footer);
+    requestAnimationFrame(() => triggerFlowAnimation());
+  } catch(e) { showFlash('Failed to load workflow detail', true); }
+}
+
+async function loadAgentPage() {
+  showSkeleton('agent-kpis', 2);
+  try {
+    const data = await fetchApi('/api/agent-overview');
+    const k = data.kpis || {};
+    _agentWorkflows = data.workflows || [];
+
+    document.getElementById('agent-kpis').innerHTML = `
+      <div class="kpi-card accent"><div class="kpi-label">Pending Approval</div><div class="kpi-value">${fmt(k.pending_approval || 0)}</div><div class="kpi-sub">Needs your review</div></div>
+      <div class="kpi-card blue"><div class="kpi-label">In Progress</div><div class="kpi-value">${fmt(k.in_progress || 0)}</div><div class="kpi-sub">Agent working</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Completed (7d)</div><div class="kpi-value">${fmt(k.completed_7d || 0)}</div><div class="kpi-sub">Approved workflows</div></div>
+      <div class="kpi-card"><div class="kpi-label">Agent Actions (24h)</div><div class="kpi-value">${fmt(k.agent_actions_24h || 0)}</div><div class="kpi-sub">Autonomous actions</div></div>
+    `;
+    animateKPIs('agent-kpis');
+    updateAgentBadge(k.pending_approval || 0);
+    renderAgentSections(_agentWorkflows, _agentFilter);
+
+    const actions = data.agent_actions_recent || [];
+    document.getElementById('agent-activity').innerHTML = actions.length ? `
+      <div class="wf-section-header">Recent Agent Activity <span class="count">${actions.length}</span></div>
+      ${actions.map(a => `
+        <div class="card" style="padding:12px 20px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><strong>${escHtml(a.action_type || 'Action')}</strong>
+              <span class="badge badge-${a.severity || 'medium'}" style="margin-left:8px">${a.severity || 'medium'}</span></div>
+            <span class="badge badge-${a.status || 'pending'}">${a.status || 'pending'}</span>
+          </div>
+          <div style="color:var(--text-muted);margin-top:4px;font-size:13px">${escHtml(a.description || '')}</div>
+        </div>`).join('')}
+    ` : `<div class="wf-section-header">Recent Agent Activity <span class="count">0</span></div>
+      <div class="card" style="padding:12px 20px"><div class="loading" style="padding:16px">No recent agent activity.</div></div>`;
+  } catch(e) {
+    console.error('Agent page error:', e);
+    document.getElementById('agent-kpis').innerHTML = '<div class="loading">Failed to load agent overview. Check Lakebase connection.</div>';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INIT
+   ═══════════════════════════════════════════════════════════════════════════ */
+try { lucide.createIcons(); } catch(e) { console.warn('Lucide not loaded:', e); }
+loadChat();
+</script>
+</body>
+</html>
