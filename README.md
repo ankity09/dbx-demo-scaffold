@@ -9,7 +9,7 @@ Reusable scaffold for building customer demos on Databricks. Clone this repo onc
 ## Prerequisites
 
 - [Databricks AI Dev Kit](https://github.com/databricks-solutions/ai-dev-kit) installed (MCP tools + skills)
-- [Claude Code](https://claude.com/claude-code) or vibe
+- [Vibe](https://github.com/databricks-field-eng/vibe) (`vibe agent` CLI)
 - Databricks CLI authenticated with a workspace profile
 
 ## Quick Start
@@ -33,7 +33,7 @@ Name the folder whatever fits your demo. This will be a fresh project with its o
 ### 3. Open in vibe and tell it what you want
 
 ```bash
-claude
+vibe agent
 ```
 
 Then say:
