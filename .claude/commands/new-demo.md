@@ -420,6 +420,21 @@ Once the user approves, do the following in order:
 
 10. **Generate domain API routes** — Add endpoints in `main.py` for each entity (list, detail, filters, CRUD for Lakebase entities).
 
-11. **Show the deployment checklist** — Tell the user what to run next (notebooks, Lakebase setup, Genie Space, MAS, deploy).
+11. **Show the deployment checklist** — Walk the user through deployment step by step, following the Deployment Sequence in CLAUDE.md. **PAY SPECIAL ATTENTION to resource registration:**
+
+**CRITICAL DEPLOYMENT STEP — Do NOT skip:**
+After `databricks apps deploy`, you MUST register resources via the API:
+```bash
+databricks apps update <app-name> --json '{
+  "resources": [
+    {"name": "sql-warehouse", "sql_warehouse": {"id": "<id>", "permission": "CAN_USE"}},
+    {"name": "mas-endpoint", "serving_endpoint": {"name": "mas-<tile>-endpoint", "permission": "CAN_QUERY"}},
+    {"name": "database", "database": {"instance_name": "<instance>", "database_name": "<db>", "permission": "CAN_CONNECT_AND_CREATE"}}
+  ]
+}' --profile=<profile>
+```
+Then **redeploy** — `app.yaml` resources alone do NOT register anything. Without the API call + redeploy, `PGHOST` is never injected and all Lakebase connections fail.
+
+13. **Verify health** — After deploy, check `/api/health` returns all three checks passing. If any fail, consult the troubleshooting table in CLAUDE.md's Deployment Sequence.
 
 **IMPORTANT:** Read the scaffold's `CLAUDE.md` for all patterns, gotchas, and conventions before generating any code. Follow every pattern documented there.

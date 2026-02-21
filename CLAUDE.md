@@ -301,9 +301,29 @@ function formatAgentName(name) {
 ### Phase C: App Deployment (do this LAST)
 12. **Fill app.yaml** — Set warehouse ID, catalog, schema, MAS tile ID (first 8 chars), Lakebase instance/db
 13. **Deploy app** — `databricks apps deploy <name> --source-code-path <path> --profile=<profile>`
-14. **Add resources** — PATCH app with sql-warehouse, mas-endpoint, and database resources
-15. **Grant permissions** — SQL warehouse CAN_USE, catalog/schema USE+SELECT to app SP
-16. **Verify** — Visit the app URL in your browser (OAuth login required). Dashboard should show data. `GET /api/health` should return `{"status": "healthy"}`
+14. **Register resources via API** — **CRITICAL: `app.yaml` resources are NOT automatically registered.** You MUST register them via the API, then redeploy:
+```bash
+databricks apps update <app-name> --json '{
+  "resources": [
+    {"name": "sql-warehouse", "sql_warehouse": {"id": "<warehouse-id>", "permission": "CAN_USE"}},
+    {"name": "mas-endpoint", "serving_endpoint": {"name": "mas-<tile-8-chars>-endpoint", "permission": "CAN_QUERY"}},
+    {"name": "database", "database": {"instance_name": "<instance>", "database_name": "<db>", "permission": "CAN_CONNECT_AND_CREATE"}}
+  ]
+}' --profile=<profile>
+```
+15. **Redeploy after resource registration** — `databricks apps deploy <name> --source-code-path <path> --profile=<profile>` — Databricks Apps only inject `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER` env vars at deploy time. If you skip this redeploy, Lakebase connections will fail.
+16. **Grant permissions** — SQL warehouse CAN_USE, catalog/schema USE+SELECT to app SP
+17. **Verify** — Visit the app URL in your browser (OAuth login required). Dashboard should show data. `GET /api/health` should return `{"status": "healthy"}` with all three checks passing (SDK, SQL warehouse, Lakebase). If any check fails, see the troubleshooting table below.
+
+**Troubleshooting after deploy:**
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Health shows `lakebase: error` | Resources not registered via API, or not redeployed after registration | Run `databricks apps update` with all resources, then redeploy |
+| Health shows `sql_warehouse: error` | Warehouse resource not registered or SP lacks CAN_USE | Register via API + grant CAN_USE to app SP |
+| Dashboard shows zeros / empty | Delta Lake tables don't exist | Run `notebooks/02_generate_data.py` first |
+| Dashboard loads but Lakebase pages empty | Lakebase schemas not applied or SP lacks table grants | Apply `core_schema.sql` + `domain_schema.sql`, grant SP access |
+| 401 / empty `{}` from curl | Normal — Databricks Apps require browser OAuth | Open the app URL in a browser instead |
 
 ## Known Gotchas
 
@@ -336,8 +356,13 @@ Newer SDK versions use `manifest.schema.columns` instead of `manifest.columns`. 
 columns = getattr(manifest, "columns", None) or getattr(manifest.schema, "columns", [])
 ```
 
-### 8. App resource auth is manual
-After deploying, you must manually grant the app's service principal access to resources (SQL warehouse, Genie Space, etc.). The `app.yaml` resources section declares the resources but does NOT auto-grant.
+### 8. app.yaml resources are NOT auto-registered — you MUST use the API
+**This is the #1 cause of "app deployed but nothing works."** The `app.yaml` `resources:` section is declarative documentation only — it does NOT register resources with the Databricks Apps platform. You MUST register resources via `databricks apps update --json '{"resources": [...]}'` AND then redeploy. Without this:
+- `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER` env vars are never injected → Lakebase connection fails
+- The app SP has no access to the SQL warehouse → Delta Lake queries fail
+- The app SP has no access to the MAS endpoint → chat returns 403
+
+**The fix is always:** register resources via API → redeploy → verify with `/api/health`.
 
 ### 9. `databricks apps update` replaces all resources
 PATCH/update to app resources replaces the entire resources array. Always include ALL resources in the update, not just the new one.
