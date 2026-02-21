@@ -322,7 +322,10 @@ databricks apps update <app-name> --json '{
 }' --profile=<profile>
 ```
 15. **Redeploy after resource registration** — `databricks apps deploy <name> --source-code-path <path> --profile=<profile>` — Databricks Apps only inject `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER` env vars at deploy time. If you skip this redeploy, Lakebase connections will fail.
-16. **Grant permissions** — SQL warehouse CAN_USE, catalog/schema USE+SELECT to app SP
+16. **Grant permissions explicitly** — Resource registration does NOT reliably grant permissions. Grant each one explicitly:
+    - SQL warehouse: `CAN_USE` to app SP
+    - Catalog/schema: `USE_CATALOG`, `USE_SCHEMA`, `SELECT` to app SP
+    - MAS serving endpoint: `CAN_QUERY` to app SP (see Gotcha #25 — without this, chat returns 403)
 17. **Verify** — Visit the app URL in your browser (OAuth login required). Dashboard should show data. `GET /api/health` should return `{"status": "healthy"}` with all three checks passing (SDK, SQL warehouse, Lakebase). If any check fails, see the troubleshooting table below.
 
 **Troubleshooting after deploy:**
@@ -333,6 +336,7 @@ databricks apps update <app-name> --json '{
 | Health shows `sql_warehouse: error` | Warehouse resource not registered or SP lacks CAN_USE | Register via API + grant CAN_USE to app SP |
 | Dashboard shows zeros / empty | Delta Lake tables don't exist | Run `notebooks/02_generate_data.py` first |
 | Dashboard loads but Lakebase pages empty | Lakebase schemas not applied or SP lacks table grants | Apply `core_schema.sql` + `domain_schema.sql`, grant SP access |
+| Chat returns 403 | MAS endpoint resource registered but SP lacks CAN_QUERY | Grant CAN_QUERY explicitly on the serving endpoint (Gotcha #25) — no redeploy needed |
 | 401 / empty `{}` from curl | Normal — Databricks Apps require browser OAuth | Open the app URL in a browser instead |
 
 ## Known Gotchas
@@ -498,6 +502,14 @@ There is **NO list endpoint** for Multi-Agent Supervisors. To find the MAS tile 
 # Example: discover the MAS tile ID
 databricks api get /api/2.0/serving-endpoints --profile=<profile> | \
   jq '.endpoints[] | select(.name | startswith("mas-")) | .tile_endpoint_metadata.tile_id'
+```
+
+### 25. MAS serving endpoint CAN_QUERY must be granted explicitly
+Registering the `mas-endpoint` resource via `databricks apps update` with `"permission": "CAN_QUERY"` declares the intent but does NOT reliably grant the permission to the app SP. The chat endpoint returns 403 even though the resource is registered. **Fix:** Grant CAN_QUERY explicitly on the serving endpoint itself. This does NOT require a redeploy — permissions take effect immediately.
+```bash
+databricks api patch /api/2.0/permissions/serving-endpoints/<mas-endpoint-name> \
+  --json '{"access_control_list":[{"service_principal_name":"<app-sp-client-id>","permission_level":"CAN_QUERY"}]}' \
+  --profile=<profile>
 ```
 
 ## Lakebase MCP Server Deployment
