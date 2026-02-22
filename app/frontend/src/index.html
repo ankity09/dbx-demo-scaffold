@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Demo App</title>
 <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://unpkg.com/@panzoom/panzoom@4.6.1/dist/panzoom.min.js"></script>
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
    CSS VARIABLES — Customize these to rebrand the entire app
@@ -284,6 +285,76 @@ tr:hover td { background:#f8fafc; }
 .sk-row:nth-child(4) { width:65%; }
 @keyframes sk-pulse { 0%,100% { opacity:0.4; } 50% { opacity:0.8; } }
 @keyframes ai-spin { to { transform:rotate(360deg); } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARCHITECTURE — INTERACTIVE PANZOOM DAG
+   ═══════════════════════════════════════════════════════════════════════════ */
+.arch-banner { background:linear-gradient(135deg,var(--primary) 0%,var(--primary-light) 60%,var(--accent) 100%); color:#fff; border-radius:var(--radius); padding:24px 28px; margin-bottom:20px; text-align:center; }
+.arch-banner h2 { font-size:20px; font-weight:800; margin-bottom:4px; }
+.arch-banner .arch-subtitle { font-size:13px; opacity:.7; margin-bottom:12px; }
+.arch-banner .arch-stats { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+.arch-banner .arch-stat-pill { background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.2); border-radius:16px; padding:3px 12px; font-size:11px; font-weight:600; }
+.arch-viewport { position:relative; height:520px; overflow:hidden; border:1px solid var(--border); border-radius:var(--radius); background-color:#fafbfc; background-image:radial-gradient(circle,#d1d5db 1px,transparent 1px); background-size:20px 20px; }
+.arch-canvas { position:absolute; top:0; left:0; transform-origin:0 0; width:1860px; height:560px; }
+.arch-edge-svg { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; overflow:visible; }
+.arch-zoom-controls { position:absolute; top:12px; left:12px; z-index:10; display:flex; flex-direction:column; gap:4px; }
+.arch-zoom-btn { width:32px; height:32px; border:1px solid var(--border); border-radius:6px; background:#fff; cursor:pointer; font-size:16px; font-weight:700; color:var(--text); display:flex; align-items:center; justify-content:center; transition:all .15s; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.arch-zoom-btn:hover { background:var(--steel-bg); border-color:#9ca3af; }
+.arch-node { position:absolute; background:#fff; border:2px solid var(--border); border-radius:10px; width:280px; cursor:pointer; transition:box-shadow .2s, border-color .2s; overflow:hidden; }
+.arch-node:hover { box-shadow:0 6px 24px rgba(0,0,0,.12); }
+.arch-node.selected { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.3), 0 6px 24px rgba(0,0,0,.12); }
+.arch-node-header { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; font-size:12px; font-weight:600; }
+.arch-node-header.online { background:#f0fdf4; border-bottom:1px solid #bbf7d0; }
+.arch-node-header.error { background:#fef2f2; border-bottom:1px solid #fecaca; }
+.arch-node-header .arch-node-title { display:flex; align-items:center; gap:6px; color:var(--primary); }
+.arch-node-header .arch-node-title svg { width:14px; height:14px; flex-shrink:0; }
+.arch-node-status-icon { width:18px; height:18px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+.arch-node-status-icon.online { color:#16a34a; }
+.arch-node-status-icon.error { color:#dc2626; }
+.arch-node-body { padding:10px 12px; }
+.arch-node-desc { font-size:11px; color:var(--text-muted); line-height:1.5; margin-bottom:6px; }
+.arch-node-items { margin-bottom:8px; }
+.arch-node-item { font-size:11px; line-height:1.6; display:flex; align-items:center; gap:4px; }
+.arch-node-item.success { color:#16a34a; }
+.arch-node-item.info { color:var(--text-muted); }
+.arch-node-item::before { content:'\00B7'; font-weight:bold; }
+.arch-node-item.success::before { content:''; }
+.arch-node-more { font-size:10px; color:var(--text-muted); cursor:pointer; padding:2px 0; }
+.arch-node-more:hover { color:var(--text); }
+.arch-node-actions-label { font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-top:6px; margin-bottom:4px; border-top:1px solid var(--border); padding-top:8px; }
+.arch-node-action { font-size:11px; color:var(--text); display:flex; align-items:center; gap:4px; padding:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.arch-node-action::before { content:'\25B8'; color:var(--text-muted); font-size:9px; flex-shrink:0; }
+.arch-node-actions-more { font-size:10px; color:var(--text-muted); padding:2px 0; }
+.flow-detail-panel { height:0; overflow:hidden; background:#fff; border:1px solid var(--border); border-radius:var(--radius); box-shadow:0 2px 12px rgba(0,0,0,.06); transition:height .3s ease; margin-top:16px; }
+.flow-detail-panel.open { height:320px; }
+.flow-detail-header { display:flex; align-items:center; justify-content:space-between; padding:12px 24px; border-bottom:1px solid var(--border); }
+.flow-detail-header.online { background:linear-gradient(90deg,#f0fdf4,#f8fafc); }
+.flow-detail-header.error { background:linear-gradient(90deg,#fef2f2,#f8fafc); }
+.flow-detail-header-left { display:flex; align-items:center; gap:10px; }
+.flow-detail-header-left .flow-detail-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+.flow-detail-header-left .flow-detail-name { font-size:15px; font-weight:700; color:var(--primary); }
+.flow-detail-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; padding:3px 10px; border-radius:6px; text-transform:uppercase; letter-spacing:.5px; }
+.flow-detail-badge.online { background:#dcfce7; color:#16a34a; }
+.flow-detail-badge.error { background:#fee2e2; color:#dc2626; }
+.flow-detail-header-right { display:flex; align-items:center; gap:10px; }
+.flow-detail-header-right a, .flow-detail-header-right button { font-size:12px; font-weight:600; border:1px solid var(--border); border-radius:6px; padding:5px 12px; cursor:pointer; text-decoration:none; background:#fff; color:var(--text); transition:all .15s; display:flex; align-items:center; gap:4px; }
+.flow-detail-header-right a:hover, .flow-detail-header-right button:hover { background:var(--steel-bg); }
+.flow-detail-close { background:none!important; border:none!important; font-size:18px; cursor:pointer; color:var(--text-muted); padding:4px 8px!important; }
+.flow-detail-close:hover { color:var(--text); }
+.flow-detail-body { display:flex; height:calc(100% - 52px); overflow:hidden; }
+.flow-detail-actions { width:260px; border-right:1px solid var(--border); padding:16px; overflow-y:auto; flex-shrink:0; }
+.flow-detail-actions h4 { font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:10px; }
+.flow-detail-action-btn { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:8px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; cursor:pointer; font-size:12px; color:var(--text); transition:all .15s; margin-bottom:6px; }
+.flow-detail-action-btn:hover { background:#f0f4ff; border-color:#6366f1; }
+.flow-detail-action-btn svg { flex-shrink:0; color:var(--text-muted); }
+.flow-detail-right { flex:1; padding:16px 20px; overflow-y:auto; }
+.flow-detail-section { margin-bottom:14px; }
+.flow-detail-section h4 { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+.flow-detail-section p { font-size:12px; color:var(--text); line-height:1.5; }
+.flow-detail-stats { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+.flow-detail-stat { background:var(--steel-bg); border:1px solid var(--border); border-radius:8px; padding:4px 12px; font-size:12px; font-weight:600; }
+.flow-detail-tables { display:flex; flex-wrap:wrap; gap:6px; }
+.flow-detail-table-pill { font-size:11px; background:var(--steel-bg); border:1px solid var(--border); border-radius:6px; padding:3px 10px; color:var(--text-muted); }
 </style>
 </head>
 <body>
@@ -302,6 +373,7 @@ tr:hover td { background:#f8fafc; }
     <!-- Vibe: Add domain pages (dashboard, inventory, etc.) as the user requests -->
     <a href="#" data-page="chat" class="active"><span class="icon"><i data-lucide="message-circle" style="width:16px;height:16px"></i></span> AI Chat</a>
     <a href="#" data-page="agent" id="nav-agent"><span class="icon"><i data-lucide="bot" style="width:16px;height:16px"></i></span> Agent Workflows <span class="nav-badge" id="agent-nav-badge" style="display:none">0</span></a>
+    <a href="#" data-page="arch"><span class="icon"><i data-lucide="layers" style="width:16px;height:16px"></i></span> Architecture</a>
   </nav>
   <div class="sidebar-footer">Databricks App</div>
 </div>
@@ -341,6 +413,22 @@ tr:hover td { background:#f8fafc; }
       <div class="wf-section" id="agent-pending"></div>
       <div class="wf-section" id="agent-resolved"></div>
       <div class="wf-section" id="agent-activity"></div>
+    </div>
+
+    <!-- ═══ Architecture ═══ -->
+    <div id="page-arch" class="page">
+      <div id="arch-banner"></div>
+      <div class="arch-viewport" id="arch-viewport">
+        <div class="arch-zoom-controls">
+          <button class="arch-zoom-btn" onclick="archZoomIn()" title="Zoom in">+</button>
+          <button class="arch-zoom-btn" onclick="archZoomOut()" title="Zoom out">&minus;</button>
+          <button class="arch-zoom-btn" onclick="archFitView()" title="Fit to view">&#x26F6;</button>
+        </div>
+        <div class="arch-canvas" id="arch-canvas">
+          <svg class="arch-edge-svg" id="arch-edges"></svg>
+        </div>
+      </div>
+      <div id="flow-detail-panel" class="flow-detail-panel"></div>
     </div>
 
     <!-- Vibe: Add domain pages here (dashboard, inventory, etc.) -->
@@ -427,10 +515,11 @@ function showFlash(msg, isError=false) {
 
 // ─── Navigation ──────────────────────────────────────────────────────────
 // Vibe: Add domain pages to PAGES and PAGE_TITLES when you create them
-const PAGES = ['chat','agent'];
+const PAGES = ['chat','agent','arch'];
 const PAGE_TITLES = {
   chat:  'AI Chat',
   agent: 'Agent Workflows',
+  arch:  'Architecture',
 };
 
 function navigate(page) {
@@ -451,6 +540,7 @@ function navigate(page) {
   // Vibe: Add page loader calls here (e.g., if (page === 'dashboard') loadDashboard();)
   if (page === 'chat') loadChat();
   else if (page === 'agent') loadAgentPage();
+  else if (page === 'arch') loadArchitecture();
 }
 
 document.querySelectorAll('#sidebar nav a').forEach(a => {
@@ -1051,6 +1141,260 @@ async function loadAgentPage() {
     console.error('Agent page error:', e);
     document.getElementById('agent-kpis').innerHTML = '<div class="loading">Failed to load agent overview. Check Lakebase connection.</div>';
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARCHITECTURE PAGE — INTERACTIVE PANZOOM DAG
+   ═══════════════════════════════════════════════════════════════════════════ */
+let _archData = null;
+let _selectedNode = null;
+let _panzoomInstance = null;
+
+const FLOW_ICONS = {
+  orchestrator: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="3"/></svg>',
+  'genie-space': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>',
+  'serving-endpoint': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>',
+  'mcp-server': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
+  'data-pipeline': '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
+  infrastructure: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>',
+  mas: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>',
+  app: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>',
+};
+const FLOW_STATUS_ICON = {
+  online: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+  error: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+};
+
+async function loadArchitecture() {
+  document.getElementById('arch-banner').innerHTML = '<div class="loading">Loading architecture...</div>';
+  try {
+    _archData = await fetchApi('/api/architecture');
+    renderArchBanner(_archData);
+    renderArchDAG(_archData);
+    initPanzoom();
+    setTimeout(archFitView, 100);
+  } catch(e) {
+    console.error('Architecture load error:', e);
+    document.getElementById('arch-banner').innerHTML = '<div class="loading">Failed to load architecture data.</div>';
+  }
+}
+
+function renderArchBanner(data) {
+  const nodes = data.nodes || [];
+  const stats = data.live_stats || {};
+  const onlineCount = nodes.filter(n => n.status === 'online').length;
+  const totalTables = nodes.reduce((s, n) => s + ((n.details || {}).tables || []).length, 0);
+  const agentCount = nodes.filter(n => !['orchestrator','schema_setup','data_generation','lakebase_setup','app_dashboard','mas'].includes(n.key)).length;
+  document.getElementById('arch-banner').innerHTML = `
+    <div class="arch-banner">
+      <h2>Architecture</h2>
+      <div class="arch-subtitle">${nodes.length} components &mdash; ${agentCount} AI agents discovered from MAS</div>
+      <div class="arch-stats">
+        <span class="arch-stat-pill">${onlineCount} Components Online</span>
+        <span class="arch-stat-pill">${totalTables} Tables Connected</span>
+        <span class="arch-stat-pill">${fmt(stats.pending_workflows || 0)} Pending Workflows</span>
+      </div>
+    </div>`;
+}
+
+function _buildArchNodeCard(node) {
+  const maxItems = 3, maxActions = 2;
+  const items = node.display_items || [];
+  const acts = node.actions || [];
+  const shownItems = items.slice(0, maxItems);
+  const moreItems = items.length - maxItems;
+  const shownActs = acts.slice(0, maxActions);
+  const moreActs = acts.length - maxActions;
+  const status = node.status || 'online';
+  const icon = FLOW_ICONS[node.type] || FLOW_ICONS['mcp-server'];
+
+  const itemsHtml = shownItems.map(it =>
+    `<div class="arch-node-item ${it.status || 'info'}">${escHtml(it.text)}</div>`
+  ).join('');
+  const moreItemsHtml = moreItems > 0 ? `<div class="arch-node-more">+${moreItems} more</div>` : '';
+  const actsHtml = shownActs.map(a =>
+    `<div class="arch-node-action" title="${escHtml(a)}">${escHtml(a.length > 35 ? a.slice(0, 35) + '...' : a)}</div>`
+  ).join('');
+  const moreActsHtml = moreActs > 0 ? `<div class="arch-node-actions-more">+${moreActs} more actions</div>` : '';
+
+  return `
+    <div class="arch-node-header ${status}">
+      <span class="arch-node-title">${icon} ${escHtml(node.name)}</span>
+      <span class="arch-node-status-icon ${status}">${FLOW_STATUS_ICON[status] || FLOW_STATUS_ICON.online}</span>
+    </div>
+    <div class="arch-node-body">
+      <div class="arch-node-items">${itemsHtml}${moreItemsHtml}</div>
+      ${acts.length ? `<div class="arch-node-actions-label">Actions:</div>${actsHtml}${moreActsHtml}` : ''}
+    </div>`;
+}
+
+function renderArchDAG(data) {
+  const canvas = document.getElementById('arch-canvas');
+  const nodes = data.nodes || [];
+  canvas.querySelectorAll('.arch-node').forEach(n => n.remove());
+  nodes.forEach(node => {
+    const div = document.createElement('div');
+    div.className = 'arch-node';
+    div.dataset.key = node.key;
+    div.style.left = node.position.x + 'px';
+    div.style.top = node.position.y + 'px';
+    div.onclick = () => selectArchNode(node.key);
+    div.innerHTML = _buildArchNodeCard(node);
+    canvas.appendChild(div);
+  });
+  // Auto-size canvas to fit all nodes
+  const maxX = Math.max(...nodes.map(n => n.position.x + 300));
+  const maxY = Math.max(...nodes.map(n => n.position.y + 200));
+  canvas.style.width = maxX + 'px';
+  canvas.style.height = maxY + 'px';
+  drawArchEdges(data);
+}
+
+function smoothstepPath(x1, y1, x2, y2) {
+  const midX = (x1 + x2) / 2;
+  return `M ${x1},${y1} C ${midX},${y1} ${midX},${y2} ${x2},${y2}`;
+}
+
+function drawArchEdges(data) {
+  const svg = document.getElementById('arch-edges');
+  const nodes = data.nodes || [];
+  const edges = data.edges || [];
+  const nodeW = 280;
+  const posMap = {};
+  nodes.forEach(n => { posMap[n.key] = n.position; });
+  const nodeH = 140;
+
+  let svgContent = `<defs>
+    <marker id="arch-arrow" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto-start-reverse">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#9ca3af"/>
+    </marker>
+  </defs>`;
+
+  edges.forEach(edge => {
+    const src = posMap[edge.source];
+    const tgt = posMap[edge.target];
+    if (!src || !tgt) return;
+    const x1 = src.x + nodeW;
+    const y1 = src.y + nodeH / 2;
+    const x2 = tgt.x;
+    const y2 = tgt.y + nodeH / 2;
+    const d = smoothstepPath(x1, y1, x2, y2);
+    svgContent += `<path d="${d}" fill="none" stroke="#d1d5db" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arch-arrow)"/>`;
+  });
+  svg.innerHTML = svgContent;
+}
+
+function initPanzoom() {
+  const canvas = document.getElementById('arch-canvas');
+  if (!canvas || !window.Panzoom) return;
+  if (_panzoomInstance) _panzoomInstance.destroy();
+  _panzoomInstance = Panzoom(canvas, { maxScale: 3, minScale: 0.2, contain: false, cursor: 'grab', canvas: true });
+  const viewport = document.getElementById('arch-viewport');
+  viewport.addEventListener('wheel', (e) => { _panzoomInstance.zoomWithWheel(e); e.preventDefault(); }, { passive: false });
+}
+
+function archZoomIn() { if (_panzoomInstance) _panzoomInstance.zoomIn(); }
+function archZoomOut() { if (_panzoomInstance) _panzoomInstance.zoomOut(); }
+function archFitView() {
+  if (!_panzoomInstance) return;
+  const viewport = document.getElementById('arch-viewport');
+  const canvas = document.getElementById('arch-canvas');
+  const vw = viewport.clientWidth;
+  const vh = viewport.clientHeight;
+  const cw = parseInt(canvas.style.width) || 1860;
+  const ch = parseInt(canvas.style.height) || 560;
+  const scale = Math.min(vw / cw, vh / ch) * 0.9;
+  const panX = (vw - cw * scale) / 2;
+  const panY = (vh - ch * scale) / 2;
+  _panzoomInstance.zoom(scale, { animate: true });
+  setTimeout(() => _panzoomInstance.pan(panX, panY, { animate: true }), 150);
+}
+
+function selectArchNode(key) {
+  if (_selectedNode === key) { hideFlowDetail(); return; }
+  _selectedNode = key;
+  document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('selected'));
+  const sel = document.querySelector(`.arch-node[data-key="${key}"]`);
+  if (sel) sel.classList.add('selected');
+  const data = _archData;
+  if (!data) return;
+  const info = (data.nodes || []).find(n => n.key === key);
+  if (!info) return;
+  showFlowDetail(info, data.workspace_url || '');
+}
+
+function showFlowDetail(info, wUrl) {
+  const panel = document.getElementById('flow-detail-panel');
+  const status = info.status || 'online';
+  const color = info.color || '#6366f1';
+  const icon = FLOW_ICONS[info.type] || FLOW_ICONS['mcp-server'];
+  const actions = info.actions || [];
+  const stats = info.stats || [];
+  const details = info.details || {};
+  const tables = details.tables || [];
+  const displayItems = info.display_items || [];
+
+  let configUrl = '';
+  if (info.key === 'mas' && wUrl && details.tile_id) configUrl = `${wUrl}/ml/bricks/mas/configure/${details.tile_id}`;
+  else if (info.type === 'genie-space' && wUrl && details.genie_space_id) configUrl = `${wUrl}/genie/rooms/${details.genie_space_id}`;
+
+  const actionsHtml = actions.map(a =>
+    `<button class="flow-detail-action-btn" onclick="event.stopPropagation();askAI('${escHtml(a.replace(/'/g,"\\'"))}')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(a)}</span>
+    </button>`
+  ).join('');
+
+  const statsHtml = stats.map(s => `<span class="flow-detail-stat">${fmt(s.value)} ${escHtml(s.label)}</span>`).join('');
+  const itemsHtml = displayItems.map(it =>
+    `<div style="font-size:12px;display:flex;align-items:center;gap:4px;margin-bottom:3px">
+      <span style="width:6px;height:6px;border-radius:50%;background:${it.status === 'success' ? '#16a34a' : '#9ca3af'};flex-shrink:0"></span>
+      ${escHtml(it.text)}
+    </div>`
+  ).join('');
+  const tablesHtml = tables.length ? `
+    <div class="flow-detail-section">
+      <h4>Tables</h4>
+      <div class="flow-detail-tables">${tables.map(t =>
+        `<span class="flow-detail-table-pill">${escHtml(typeof t === 'string' ? t.replace(/_/g, ' ') : t)}</span>`
+      ).join('')}</div>
+    </div>` : '';
+
+  panel.innerHTML = `
+    <div class="flow-detail-header ${status}">
+      <div class="flow-detail-header-left">
+        <div class="flow-detail-icon" style="background:${color}15;color:${color}">${icon}</div>
+        <span class="flow-detail-name">${escHtml(info.name || '')}</span>
+        <span class="flow-detail-badge ${status}">${FLOW_STATUS_ICON[status] || ''} ${status === 'online' ? 'ONLINE' : 'ERROR'}</span>
+      </div>
+      <div class="flow-detail-header-right">
+        ${configUrl ? `<a href="${escHtml(configUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+          Configure
+        </a>` : ''}
+        <button class="flow-detail-close" onclick="event.stopPropagation();hideFlowDetail()">&times;</button>
+      </div>
+    </div>
+    <div class="flow-detail-body">
+      <div class="flow-detail-actions">
+        <h4>Available Actions</h4>
+        ${actionsHtml || '<div style="font-size:12px;color:var(--text-muted)">No actions available</div>'}
+      </div>
+      <div class="flow-detail-right">
+        ${info.description ? `<div class="flow-detail-section"><h4>Description</h4><p>${escHtml(info.description)}</p></div>` : ''}
+        ${statsHtml ? `<div class="flow-detail-section"><h4>Stats</h4><div class="flow-detail-stats">${statsHtml}</div></div>` : ''}
+        ${itemsHtml ? `<div class="flow-detail-section"><h4>Progress Details</h4>${itemsHtml}</div>` : ''}
+        ${tablesHtml}
+      </div>
+    </div>`;
+  panel.classList.add('open');
+}
+
+function hideFlowDetail() {
+  _selectedNode = null;
+  document.querySelectorAll('.arch-node').forEach(n => n.classList.remove('selected'));
+  const panel = document.getElementById('flow-detail-panel');
+  if (panel) panel.classList.remove('open');
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
