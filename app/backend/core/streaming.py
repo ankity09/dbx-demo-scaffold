@@ -223,9 +223,13 @@ async def stream_mas_chat(
                 # Auto-approve MCP tool calls and continue
                 approval_round += 1
                 log.info("Auto-approving %d MCP tool call(s) (round %d)", len(pending_approvals), approval_round)
+                # IMPORTANT: Only include 'message' and 'mcp_approval_request' types.
+                # function_call / function_call_output are internal MAS items and
+                # cause errors if included as input.
                 input_messages = list(chat_history[-10:])
                 for item in round_output_items:
-                    input_messages.append(item)
+                    if item.get("type") in ("message", "mcp_approval_request"):
+                        input_messages.append(item)
                 for req in pending_approvals:
                     input_messages.append({
                         "type": "mcp_approval_response",
