@@ -1,25 +1,36 @@
 """
-MAS (Multi-Agent Supervisor) SSE streaming proxy with action card detection
-and automatic MCP tool approval.
+MAS (Multi-Agent Supervisor) SSE streaming proxy with MCP approval flow.
+
+Supports two MCP approval modes (controlled by `mcp_auto_approve` parameter):
+  - Auto-approve (default): Backend auto-approves all MCP tool calls. Simpler,
+    but the user doesn't see individual tool approvals.
+  - User approval: Backend pauses on MCP approval requests, sends them to the
+    frontend as `mcp_approval` SSE events. The frontend shows an approval UI
+    and sends the decision back. Requires the user's OBO token.
 
 SSE event protocol (frontend must handle all of these):
   - delta:            Text chunk from the final answer
   - tool_call:        Sub-agent invocation started
   - agent_switch:     MAS switched to a different sub-agent
   - sub_result:       Data returned from a sub-agent
+  - mcp_approval:     MCP tool needs user approval (user-approval mode only)
   - action_card:      Entity created/referenced (e.g. PO, exception) — render as card
   - suggested_actions: Follow-up prompts based on tools used
   - error:            Error message
   - [DONE]:           Stream complete
 
-MCP Auto-Approval:
-  When MAS calls an External MCP Server tool, it emits an `mcp_approval_request`
-  event and pauses. This module auto-approves those requests and re-invokes the
-  MAS with the approval to continue execution. The caller sees seamless streaming.
+OBO (On-Behalf-Of-User) Setup:
+  The app must use the user's OAuth token for MAS calls when MCP tools are
+  involved. The Databricks App proxy forwards it as `x-forwarded-access-token`.
+  Required app config:
+    databricks api patch /api/2.0/apps/<name> --json '{"user_api_scopes": ["serving.serving-endpoints", "sql"]}'
 
 Usage:
-    from backend.core.streaming import stream_mas_chat
-    return StreamingResponse(stream_mas_chat(message, history, action_card_tables), media_type="text/event-stream")
+    from backend.core.streaming import stream_mas_chat, mcp_pending_state
+    # New message:
+    return StreamingResponse(stream_mas_chat(msg, history, user_token=token), ...)
+    # MCP approval continuation:
+    return StreamingResponse(stream_mas_chat(None, history, user_token=token, approve_mcp=True), ...)
 """
 
 import asyncio
@@ -40,27 +51,28 @@ MAS_TILE_ID = os.getenv("MAS_TILE_ID", "")
 
 
 def _get_mas_auth() -> tuple[str, str]:
-    """Get workspace host and auth header for MAS endpoint calls."""
+    """Get workspace host and SP auth header (fallback when no user token)."""
     host = w.config.host.rstrip("/")
     auth_headers = w.config.authenticate()
     return host, auth_headers.get("Authorization", "")
 
 
+# ── MCP Approval State ──────────────────────────────────────────────────────
+# When MAS requests MCP tool approval in user-approval mode, we pause the
+# stream and save state here. When the user approves, the next call to
+# stream_mas_chat (with approve_mcp=True) resumes with full context.
+mcp_pending_state: dict | None = None
+
+
 # ── Action card table config ─────────────────────────────────────────────
-# Override this list from your domain routes to detect custom entities.
-# Each entry: {"table": "...", "card_type": "...", "id_col": "...", "title_template": "...", "actions": [...], "detail_cols": {...}}
-#
-# Example:
-#   ACTION_CARD_TABLES = [
-#       {"table": "purchase_orders", "card_type": "purchase_order", "id_col": "po_id",
-#        "title_template": "Purchase Order {po_number}", "actions": ["approve", "dismiss"],
-#        "detail_cols": {"from": "supplier_facility_id", "to": "destination_facility_id", "product": "product_id", "quantity": "quantity", "status": "status"}},
-#   ]
+# Override from domain routes. Each entry:
+#   {"table": "...", "card_type": "...", "id_col": "...",
+#    "title_template": "...", "actions": [...], "detail_cols": {...}}
 ACTION_CARD_TABLES: list[dict] = []
 
 
 async def _detect_chat_actions(final_text: str, lakebase_called: bool, tools_called: set) -> list[dict]:
-    """Detect actionable entities created/referenced during chat and return action card events."""
+    """Detect actionable entities created/referenced during chat."""
     cards = []
 
     if lakebase_called and ACTION_CARD_TABLES:
@@ -77,7 +89,6 @@ async def _detect_chat_actions(final_text: str, lakebase_called: bool, tools_cal
                         details[display_key] = str(val) if val is not None else ""
 
                     title = tbl_config.get("title_template", tbl_config["card_type"])
-                    # Fill {placeholder} in title from row data
                     try:
                         title = title.format(**row)
                     except (KeyError, IndexError):
@@ -110,18 +121,28 @@ async def _detect_chat_actions(final_text: str, lakebase_called: bool, tools_cal
 
 
 async def stream_mas_chat(
-    message: str,
+    message: str | None,
     chat_history: list[dict],
     action_card_tables: list[dict] | None = None,
+    user_token: str = "",
+    mcp_auto_approve: bool = True,
+    approve_mcp: bool | None = None,
 ):
     """
     Async generator that yields SSE events from a MAS streaming invocation.
 
     Args:
-        message: The user message to send.
+        message: User message (None when continuing from MCP approval).
         chat_history: List of {"role": "user"|"assistant", "content": "..."} dicts.
         action_card_tables: Optional override for ACTION_CARD_TABLES config.
+        user_token: User's OAuth token from x-forwarded-access-token header.
+                    Required for MCP tools to work (MAS needs user identity).
+        mcp_auto_approve: If True, auto-approve MCP tools in backend.
+                          If False, pause and send approval request to frontend.
+        approve_mcp: True/False when continuing from a user MCP approval decision.
     """
+    global mcp_pending_state
+
     if action_card_tables is not None:
         global ACTION_CARD_TABLES
         ACTION_CARD_TABLES = action_card_tables
@@ -132,22 +153,55 @@ async def stream_mas_chat(
         yield "data: [DONE]\n\n"
         return
 
-    final_text = ""
-    lakebase_called = False
-    tools_called = set()
-    MAX_APPROVAL_ROUNDS = 10  # safety limit to prevent infinite loops
+    # ── Determine starting state ────────────────────────────────────────
+    if approve_mcp is not None and mcp_pending_state:
+        # Continuing from user MCP approval
+        log.info("MCP approval received: approve=%s", approve_mcp)
+        all_accumulated = mcp_pending_state["accumulated"]
+        tools_called = mcp_pending_state["tools_called"]
+        lakebase_called = mcp_pending_state["lakebase_called"]
+        approval_round = mcp_pending_state["round"]
 
-    try:
-        host, auth = await asyncio.to_thread(_get_mas_auth)
-        url = f"{host}/serving-endpoints/{endpoint}/invocations"
-        input_messages = list(chat_history[-10:])
+        for req in mcp_pending_state["pending"]:
+            all_accumulated.append({
+                "type": "mcp_approval_response",
+                "id": f"approval-{approval_round}-{req.get('id', '')}",
+                "approval_request_id": req.get("id", ""),
+                "approve": bool(approve_mcp),
+            })
+        start_messages = list(chat_history[-10:]) + all_accumulated
+        mcp_pending_state = None
+    elif approve_mcp is not None and not mcp_pending_state:
+        yield f"data: {json.dumps({'type': 'error', 'text': 'No pending MCP approval.'})}\n\n"
+        yield "data: [DONE]\n\n"
+        return
+    else:
+        # New user message
+        start_messages = list(chat_history[-10:])
+        all_accumulated: list[dict] = []
+        tools_called: set = set()
+        lakebase_called = False
         approval_round = 0
 
+    final_text = ""
+    MAX_ROUNDS = 10
+
+    try:
+        host = w.config.host.rstrip("/")
+        # Use user token for MAS calls (required for MCP tools)
+        if user_token:
+            auth = f"Bearer {user_token}"
+        else:
+            _, auth = await asyncio.to_thread(_get_mas_auth)
+            log.warning("No user token — using SP auth. MCP tools may not work.")
+        url = f"{host}/serving-endpoints/{endpoint}/invocations"
+        input_messages = start_messages
+
         async with httpx.AsyncClient(timeout=httpx.Timeout(180.0)) as client:
-            while approval_round <= MAX_APPROVAL_ROUNDS:
+            while approval_round <= MAX_ROUNDS:
                 payload = {"input": input_messages, "stream": True, "max_turns": 15}
-                round_output_items = []
-                pending_approvals = []
+                round_output_items: list[dict] = []
+                pending_approvals: list[dict] = []
 
                 async with client.stream(
                     "POST", url,
@@ -169,12 +223,14 @@ async def stream_mas_chat(
                         etype = evt.get("type", "")
                         step = evt.get("step", 0)
 
+                        # Text delta
                         if etype == "response.output_text.delta":
                             delta = evt.get("delta", "")
                             if delta:
                                 final_text += delta
                                 yield f"data: {json.dumps({'type': 'delta', 'text': delta, 'step': step})}\n\n"
 
+                        # Completed output item
                         elif etype == "response.output_item.done":
                             item = evt.get("item", {})
                             item_type = item.get("type", "")
@@ -190,12 +246,11 @@ async def stream_mas_chat(
                             elif item_type == "mcp_approval_request":
                                 tool_name = item.get("name", "unknown")
                                 server_label = item.get("server_label", "")
-                                log.info("MCP approval request: tool=%s server=%s id=%s", tool_name, server_label, item.get("id"))
                                 pending_approvals.append(item)
                                 tools_called.add(f"mcp:{server_label}:{tool_name}")
                                 if "lakebase" in server_label.lower():
                                     lakebase_called = True
-                                yield f"data: {json.dumps({'type': 'tool_call', 'agent': f'{server_label} → {tool_name}', 'step': step})}\n\n"
+                                yield f"data: {json.dumps({'type': 'tool_call', 'agent': f'Lakebase → {tool_name}', 'step': step})}\n\n"
 
                             elif item_type == "function_call_output":
                                 output_text = item.get("output", "")
@@ -216,26 +271,50 @@ async def stream_mas_chat(
                                         if block.get("type") == "output_text" and block.get("text"):
                                             final_text = block["text"]
 
-                # If no MCP approvals pending, we're done
+                # No pending approvals → done
                 if not pending_approvals:
                     break
 
-                # Auto-approve MCP tool calls and continue
+                # ── MCP approval handling ────────────────────────────────────
                 approval_round += 1
-                log.info("Auto-approving %d MCP tool call(s) (round %d)", len(pending_approvals), approval_round)
-                # Include ALL output item types (message, function_call,
-                # function_call_output, mcp_approval_request) — omitting any
-                # breaks the MAS conversation context and causes approval failures.
-                input_messages = list(chat_history[-10:])
-                for item in round_output_items:
-                    input_messages.append(item)
-                for req in pending_approvals:
-                    input_messages.append({
-                        "type": "mcp_approval_response",
-                        "id": f"approval-{approval_round}-{req.get('id', '')}",
-                        "approval_request_id": req.get("id", ""),
-                        "approve": True,
-                    })
+                all_accumulated.extend(round_output_items)
+
+                if mcp_auto_approve:
+                    # Auto-approve: add approval responses and continue immediately
+                    log.info("MCP auto-approve round %d: %s", approval_round, [p.get("name") for p in pending_approvals])
+                    for req in pending_approvals:
+                        all_accumulated.append({
+                            "type": "mcp_approval_response",
+                            "id": f"approval-{approval_round}-{req.get('id', '')}",
+                            "approval_request_id": req.get("id", ""),
+                            "approve": True,
+                        })
+                    input_messages = list(chat_history[-10:]) + all_accumulated
+                else:
+                    # User approval: pause, save state, send to frontend
+                    mcp_pending_state = {
+                        "accumulated": all_accumulated,
+                        "pending": pending_approvals,
+                        "tools_called": tools_called,
+                        "lakebase_called": lakebase_called,
+                        "round": approval_round,
+                    }
+                    approval_tools = []
+                    for p in pending_approvals:
+                        args_raw = p.get("arguments", "{}")
+                        try:
+                            args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                        except (json.JSONDecodeError, TypeError):
+                            args = {}
+                        approval_tools.append({
+                            "name": p.get("name", "unknown"),
+                            "server": p.get("server_label", ""),
+                            "arguments": args,
+                        })
+                    yield f"data: {json.dumps({'type': 'mcp_approval', 'tools': approval_tools})}\n\n"
+                    log.info("MCP approval pause: round=%d tools=%s", approval_round, [t["name"] for t in approval_tools])
+                    yield "data: [DONE]\n\n"
+                    return  # Exit — frontend will send approval and start new stream
 
     except Exception as e:
         log.error("MAS stream error: %s", e)

@@ -532,6 +532,30 @@ MAS instructions that say "Use the Lakebase MCP tool to INSERT..." will confuse 
 ### 28. MAS max_turns must be increased for MCP workflows
 The default MAS step/turn limit is too low for multi-tool workflows that include MCP. The model exhausts its budget on analysis tools (Genie, UC functions) before reaching MCP tools, then reports "MCP tools not accessible." **Fix:** Pass `"max_turns": 15` in the MAS invocation payload. The `core/streaming.py` module does this automatically. Without this, MCP tools will never be called in complex workflows.
 
+### 29. MCP tools require user identity (OBO), not app SP
+MAS External MCP Server tools ONLY work when called with a **user's OAuth token**, not the app's Service Principal token. With an SP token, MCP tools appear as `function_call` with "Tool not found" instead of `mcp_approval_request`. The Databricks App proxy forwards the user's token as `x-forwarded-access-token`. **Setup:**
+1. Configure the app to forward user scopes:
+```bash
+databricks api patch /api/2.0/apps/<app-name> --json '{"user_api_scopes": ["serving.serving-endpoints", "sql"]}' --profile=<profile>
+```
+2. Read the token in the backend: `request.headers.get("x-forwarded-access-token", "")`
+3. Use it for MAS calls: `Authorization: Bearer <user_token>`
+4. Users must **re-authenticate** (incognito window) after scope changes take effect.
+
+The `core/streaming.py` module supports both modes via the `user_token` parameter. Without a user token, it falls back to SP auth with a warning.
+
+### 30. MCP approval accumulation — ALL items from ALL rounds
+Each MCP approval round must include ALL output items from ALL previous rounds in the follow-up request. Without this, the model loses context between rounds and skips write operations (e.g., queries data but never inserts). The `core/streaming.py` module uses `all_accumulated` list that persists across rounds. **Never rebuild `input_messages` from only the current round's items.**
+
+### 31. MCP user-approval mode — frontend approval UI
+The `core/streaming.py` supports two modes via `mcp_auto_approve` parameter:
+- **Auto-approve** (`True`, default): Backend auto-approves all MCP tool calls. Simple, seamless.
+- **User approval** (`False`): Backend pauses, sends `mcp_approval` SSE event to frontend with tool name/args. Frontend shows approval UI. User clicks Approve/Deny. Frontend sends `{"approve_mcp": true/false}` back. Backend resumes with full accumulated context.
+
+For user-approval mode, the chat endpoint must handle two request types:
+1. New message: `{"message": "...", "history": [...]}`
+2. Approval continuation: `{"approve_mcp": true/false}` (no message field)
+
 ## Lakebase MCP Server Deployment
 
 The scaffold includes a **shared** Lakebase MCP server at `lakebase-mcp-server/`. Deploy it once and reuse across all demos via URL-based database routing (`/db/{database}/mcp/`).
