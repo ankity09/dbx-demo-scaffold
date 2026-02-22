@@ -8,9 +8,95 @@ Reusable scaffold for building customer demos on Databricks. Clone this repo onc
 
 ## Prerequisites
 
-- [Databricks AI Dev Kit](https://github.com/databricks-solutions/ai-dev-kit) installed (MCP tools + skills)
-- [Vibe](https://github.com/databricks-field-eng/vibe) (`vibe agent` CLI)
-- Databricks CLI authenticated with a workspace profile
+You must use this scaffold through **Vibe agent** (the Databricks enterprise Claude Code environment). Personal Claude Code subscriptions won't have the required plugins and internal MCP tools.
+
+### 1. Vibe agent
+
+Vibe is the Databricks Field Engineering wrapper around Claude Code. It provides the enterprise plugins (Salesforce, Glean, Slack, Jira, Google Workspace) and internal MCP servers that the `/new-demo` wizard uses for customer research.
+
+```bash
+# Install vibe (if not already installed)
+# Follow instructions at: https://github.com/databricks-field-eng/vibe
+
+# Verify it works
+vibe agent
+```
+
+After installation, run `vibe agent` once and follow the setup prompts. This will:
+- Create `~/.vibe/profile` with your SA identity
+- Install enterprise plugins to `~/.vibe/marketplace/`
+- Configure MCP servers for Glean, Slack, Jira, and Confluence in `~/.claude/mcp.json`
+- Set up Chrome DevTools MCP for UI testing
+
+### 2. Databricks AI Dev Kit
+
+The AI Dev Kit provides the Databricks MCP server — this is how vibe creates Genie Spaces, runs SQL, deploys apps, and manages Lakebase programmatically.
+
+```bash
+# Clone and install
+git clone https://github.com/databricks-solutions/ai-dev-kit.git ~/ai-dev-kit
+cd ~/ai-dev-kit
+python -m venv .venv
+source .venv/bin/activate
+pip install -e databricks-mcp-server/
+
+# Verify the MCP server can start
+python databricks-mcp-server/run_server.py --help
+```
+
+The global MCP config (`~/.claude/mcp.json`) should already reference this after vibe setup. If not, add:
+```json
+{
+  "mcpServers": {
+    "databricks": {
+      "command": "~/ai-dev-kit/.venv/bin/python",
+      "args": ["~/ai-dev-kit/databricks-mcp-server/run_server.py"],
+      "env": { "DATABRICKS_CONFIG_PROFILE": "DEFAULT" }
+    }
+  }
+}
+```
+
+### 3. Databricks CLI
+
+The CLI is used for workspace authentication and direct operations (Lakebase psql, app deployment, resource management).
+
+```bash
+# Install (if not already installed)
+brew install databricks/tap/databricks
+
+# Authenticate with a workspace
+databricks auth login https://fe-sandbox-serverless-<name>.cloud.databricks.com --profile=<name>
+
+# Verify
+databricks current-user me --profile=<name>
+```
+
+You'll create a workspace-specific profile during the `/new-demo` wizard (Phase 2). If you don't have a workspace yet, the wizard will guide you through creating one via FEVM.
+
+### 4. Verify everything
+
+Run these checks before starting your first demo:
+
+```bash
+# Vibe agent starts and shows enterprise plugins
+vibe agent
+# You should see fe-databricks-tools, fe-salesforce-tools, etc. in the skill list
+
+# Databricks CLI is authenticated
+databricks current-user me --profile=<your-profile>
+
+# AI Dev Kit MCP server exists
+ls ~/ai-dev-kit/databricks-mcp-server/run_server.py
+```
+
+### What each component provides
+
+| Component | What it gives the scaffold | Without it |
+|-----------|---------------------------|-----------|
+| **Vibe agent** | Enterprise plugins (Salesforce, Glean, Slack), internal MCP servers, SA identity | Phase 1 research is limited to web search only — no Salesforce UCO lookup, no internal Slack/Glean search |
+| **AI Dev Kit** | Databricks MCP tools (execute_sql, create apps, manage Genie/MAS) | Phase 8 deployment must be done manually via CLI commands |
+| **Databricks CLI** | Workspace auth, Lakebase psql, app deployment, resource management | Can't authenticate or run deployment commands |
 
 ## Quick Start
 
@@ -37,11 +123,12 @@ vibe agent
 /new-demo
 ```
 
-The wizard walks you through 8 phases — from Q&A to deployed app — all within a single command:
+The wizard walks you through 9 phases (Phase 0-8) — from project setup to deployed app — all within a single command:
 
 | Phase | What it does | Time |
 |-------|-------------|------|
-| **1. Customer Discovery** | You provide the customer website + Salesforce UCO (or business problem). Vibe researches the company via web + Salesforce + Glean, extracts brand colors, cross-references use case keywords against the customer's own website, and proposes a customer-specific demo story. | 5 min |
+| **0. Project Setup** | Creates a separate project directory so the scaffold stays clean. Copies scaffold files, initializes git. Handles resume detection if you restart. | 1 min |
+| **1. Customer Discovery** | SA context interview (skippable questions), then automated two-pass research via web + Salesforce + Glean + Slack. Accepts direct Salesforce URLs. Extracts brand colors, cross-references use case keywords, and proposes a customer-specific demo story. | 5-8 min |
 | **2. Infrastructure** | Workspace URL, CLI profile, catalog, schema, warehouse ID | 3 min |
 | **3. Data Model** | Entities and KPIs tailored to the customer's actual business (informed by Phase 1 research) | 5 min |
 | **4. AI Layer** | Genie tables, MAS persona, sub-agents, MCP server | 3 min |
@@ -58,16 +145,9 @@ After each Q&A phase (1-5), your answers are saved to `demo-config.yaml` so noth
 
 > Build me a launch operations demo for Blue Origin. They manage rocket engine test campaigns across 3 test facilities with 50+ engine units. Key use cases: test campaign scheduling, anomaly detection from sensor telemetry during hot-fire tests, and post-test analysis automation. I want a dark theme with a sidebar nav and a dashboard showing upcoming test schedules and engine health scores.
 
-### 4. Initialize git in your new project
+### 4. Start building
 
-After the wizard completes, your new demo is in a separate directory (e.g., `~/demos/blue-origin-launch-ops/`):
-
-```bash
-cd ~/demos/blue-origin-launch-ops
-git init
-git add .
-git commit -m "Initial scaffold: Blue Origin Launch Ops demo"
-```
+Phase 0 creates your project in a separate directory (e.g., `~/demos/blue-origin-launch-ops/`) and initializes git automatically. After Phase 2, you'll restart vibe in the new project directory to pick up MCP tools — the wizard resumes where you left off.
 
 ## How It Works
 
@@ -105,7 +185,7 @@ The scaffold includes 4 slash commands (visible when vibe is opened in this dire
 
 | Command | What it does |
 |---------|-------------|
-| **`/new-demo`** | Full setup wizard — 8 phases from customer research to deployed app. This is the main entry point. |
+| **`/new-demo`** | Full setup wizard — 9 phases from project setup to deployed app. This is the main entry point. |
 | **`/deploy-demo`** | Quick redeploy after code changes. Syncs files, checks resources, deploys, verifies health. |
 | **`/demo-health`** | Run diagnostics on a deployed demo. Checks app status, resources, health endpoint, and offers automatic fixes. |
 | **`/demo-talk-track`** | Generate a structured talk track / demo script for presenting to the customer. |
@@ -127,7 +207,7 @@ AI Dev Kit is the **how you build** (tools + knowledge). This scaffold is the **
 ```
 dbx-demo-scaffold/
 ├── .claude/commands/
-│   ├── new-demo.md              # /new-demo wizard — 8-phase guided setup
+│   ├── new-demo.md              # /new-demo wizard — 9-phase guided setup
 │   ├── deploy-demo.md           # /deploy-demo — quick redeploy after changes
 │   ├── demo-health.md           # /demo-health — diagnostics & auto-fix
 │   └── demo-talk-track.md       # /demo-talk-track — generate presentation script
@@ -156,6 +236,11 @@ dbx-demo-scaffold/
 │   └── 03_seed_lakebase.py      # Seed Lakebase operational tables
 ├── agent_bricks/                # MAS + KA config templates
 ├── genie_spaces/                # Genie Space config template
+├── docs/
+│   ├── API_PATTERNS.md          # Genie, MAS, UC HTTP connection API reference
+│   ├── DEPLOYMENT_GUIDE.md      # Deployment sequence reference
+│   ├── FRONTEND_PATTERNS.md     # Frontend conventions
+│   └── GOTCHAS.md               # Known issues and workarounds
 ├── skill/                       # AI Dev Kit skill (knowledge docs)
 │   ├── SKILL.md                 # Skill definition
 │   └── resources/               # Lakebase, Apps, data gen reference docs
