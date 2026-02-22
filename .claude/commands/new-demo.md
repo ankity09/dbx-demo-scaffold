@@ -149,7 +149,7 @@ Proceed directly to Phase 1 (no restart needed yet).
 
 ## Phase 1: Customer Discovery & Story
 
-Tell the user: "Let's start by understanding the customer. I'll research them so the demo resonates with their actual business."
+Tell the user: "Let's start by understanding the customer. I'll research them so the demo resonates with their actual business. I'll ask a few questions — skip any you don't have context on."
 
 ### Step 1.1: Collect customer basics
 
@@ -161,18 +161,58 @@ Ask these questions (use AskUserQuestion):
 **1.1b Customer website** — What's their website URL?
 - Free text. e.g., `https://www.simplot.com`
 
-**1.1c Use case context** — Do you have a Salesforce Use Case Object (UCO) for this engagement?
-- Options: "Yes, I have a UCO", "No, I'll describe the use case myself"
-- If YES: Ask for the account name or UCO ID. Use the `salesforce-actions` skill / `field-data-analyst` subagent to pull:
+**1.1c Salesforce context** — Paste a Salesforce link, account name, or UCO ID — or skip.
+- Accept ANY of the following formats:
+  - **Salesforce URL** — UCO link (`https://databricks.lightning.force.com/lightning/r/Use_Case__c/a0x.../view`), Account link, or Opportunity link. Parse the object type and record ID from the URL.
+  - **Account name** — e.g., "Simplot" (will search Salesforce)
+  - **UCO ID** — e.g., "a0x..." (will fetch directly)
+  - **"Skip"** — No Salesforce data available. Ask them to describe the use case in 2-3 sentences instead: What's the business problem? What data do they have? What outcome do they want?
+- If a Salesforce link or ID is provided, use the `salesforce-actions` skill / `field-data-analyst` subagent to pull:
   - UCO name, stage, description, implementation status
   - Account details (industry, segment, ARR)
-  - Any related opportunities or blockers
-  - SA and AE names on the account
-- If NO: Ask them to describe in 2-3 sentences what the customer is trying to solve with Databricks. What's the business problem? What data do they have? What outcome do they want?
+  - **All related UCOs on the same account** — shows the full engagement picture
+  - Related opportunities and blockers
+  - ASQs / specialist requests on the account
+  - SA and AE names
+- If an Account name/link is provided (not a specific UCO), also list all UCOs on the account and ask the SA which one(s) this demo is for.
 
-### Step 1.2: Research the customer
+### Step 1.2: SA context interview
 
-**IMPORTANT: Do this research AUTOMATICALLY after collecting the basics. Do NOT skip this step.**
+Tell the user: "A few quick questions so I can tailor the research. Skip any that don't apply — just say 'skip' or 'N/A'."
+
+**All questions in this step are skippable.** If the SA says "skip", "N/A", "don't know", or anything indicating they want to move on, accept it and proceed. Do NOT re-ask or push for an answer.
+
+**1.2a Use case description** — In 2-3 sentences, what's the customer trying to solve?
+- What's the business problem? What data do they have? What outcome do they want?
+- If the UCO description from Step 1.1c already covers this well, propose it and ask: "The UCO says: `<description>`. Is this still accurate, or has the scope changed?"
+
+**1.2b Current state** — What are they using today?
+- Options: "Snowflake", "AWS (EMR/Glue/Redshift)", "Azure (Synapse/ADF)", "GCP (BigQuery)", "Legacy DW (Teradata/Oracle/Netezza)", "Spark on-prem", "Not sure / Skip"
+- Multi-select allowed. This informs competitive positioning and migration narratives.
+
+**1.2c Demo audience** — Who'll be in the room?
+- Options: "Technical (data engineers, architects)", "Mixed (technical + business)", "Executive (VP+, C-suite)", "Not sure / Skip"
+- If they provide specifics (names, titles), note them. This drives UI complexity and talk track tone.
+
+**1.2d What matters most** — What's the #1 thing that would make them say "wow"?
+- Options: "AI / intelligent agents", "Performance / speed", "Cost savings", "Governance / security", "Simplicity / unified platform", "Not sure / Skip"
+- This becomes the demo's centerpiece — the "wow moment" we build toward.
+
+**1.2e Competitive context** — Is there a competitive eval happening?
+- Options: "Yes, against Snowflake", "Yes, against another vendor", "No active competition", "Not sure / Skip"
+- If yes: note the competitor. Research will include competitive intelligence.
+
+**1.2f Data sources** — What data systems or sources are involved?
+- Free text. e.g., "S3, Kafka, Salesforce, SAP, flat files from vendors"
+- If skipped, the research phase will try to infer from the customer's tech stack.
+
+**1.2g Timeline** — When's the demo?
+- Options: "This week", "Next 1-2 weeks", "Next month", "No specific date / Skip"
+- This sets the urgency level — affects how polished vs. rapid the build should be.
+
+### Step 1.3: Automated research (Pass 1)
+
+**IMPORTANT: Do this research AUTOMATICALLY after Steps 1.1-1.2. Do NOT skip this step.**
 
 **`[PARALLEL]` — Launch ALL of the following research tasks simultaneously using the Task tool:**
 
@@ -181,6 +221,7 @@ Ask these questions (use AskUserQuestion):
    - About page — company scale, history, leadership
    - Newsroom / Press releases — recent initiatives, partnerships, challenges
    - Investor page (if public) — revenue, strategy, risks
+   - Careers / Tech blog — technology stack hints, engineering culture
    - **USE CASE CROSS-REFERENCE:** If the SA mentioned a specific use case area (e.g., "genomics"), also search `site:<customer-domain> <use-case-keywords>`. For example, if the SA says "Simplot + genomics", fetch `site:simplot.com genomics` results. Look for the customer's own description of their work in that area — their terminology, their scale, their goals. This makes the demo speak the customer's language.
    - Extract brand colors from the website CSS/visual style
 
@@ -190,12 +231,16 @@ Ask these questions (use AskUserQuestion):
    - `"<customer name>" recent news <current year>` — last 6 months of news
    - `<industry> <use case> challenges trends <current year>` — industry context
    - `"<customer name>" competitors` — market position
+   - If SA provided competitive context (Step 1.2e): `"<customer name>" vs "<competitor>"` and `"<customer name>" "<competitor>" migration OR evaluation`
+   - If SA provided data sources (Step 1.2f): `"<customer name>" <data source keywords>` to find how they use those systems
 
-3. **Salesforce context** (Task: field-data-analyst, if UCO available) — From the UCO/account data:
+3. **Salesforce context** (Task: field-data-analyst, if Salesforce data available from Step 1.1c) — From the UCO/account data:
    - What Databricks products are they evaluating?
    - What stage is the engagement in?
    - Any known technical requirements or blockers?
    - Historical engagement notes
+   - **All UCOs on the account** — shows the full engagement breadth
+   - Related opportunities, ASQs, and specialist requests
 
 4. **Internal knowledge** (Task: general-purpose agent, if Glean/Slack MCP available) — Search for:
    - Internal Slack conversations about this customer
@@ -204,9 +249,23 @@ Ask these questions (use AskUserQuestion):
 
 **Wait for all parallel tasks to complete before proceeding.**
 
-### Step 1.3: Present research findings
+### Step 1.4: Targeted deep-dives (Pass 2)
 
-After research, present a **Customer Brief** to the user:
+After Pass 1 completes, review the findings for opportunities to go deeper. **This pass is automatic — do NOT ask the user before doing it.**
+
+**`[PARALLEL]` — Launch follow-up research tasks based on Pass 1 findings:**
+
+- **If Pass 1 found a press release or news article about a data/tech initiative** → WebFetch the full article, extract specifics (budget, timeline, partners, technology names)
+- **If Pass 1 found a 10-K, annual report, or investor presentation** → WebFetch and extract: risk factors mentioning data/analytics, strategic priorities, technology investment plans, regulatory challenges
+- **If Pass 1 found an engineering blog, tech talk, or conference presentation** → WebFetch and extract: current tech stack, architecture decisions, scale metrics, pain points
+- **If SA mentioned a competitor (Step 1.2e)** → WebSearch for `"<competitor>" Databricks OR "data lakehouse" case study` to find counter-positioning material
+- **If Pass 1 found the customer on Databricks community, GitHub, or job postings** → Extract: what Databricks features they use, what roles they're hiring for (signals investment areas)
+
+**Skip this step entirely if Pass 1 didn't surface anything worth following up on.** Don't do deep-dives just for the sake of it.
+
+### Step 1.5: Present research findings
+
+After both research passes, present a **Customer Brief** to the user:
 
 ```
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -225,10 +284,31 @@ THEIR WORK IN <USE CASE AREA> (from website/public sources)
 <What the customer themselves say about this area — their terminology,
 their programs, their scale. This section makes the demo speak their language.>
 
+CURRENT STATE (from SA + research)
+  Platform:   <what they use today — Snowflake, EMR, etc.>
+  Data:       <known data sources — S3, Kafka, SAP, etc.>
+  Pain:       <what's broken or missing>
+
 KEY CHALLENGES (from research)
 - <challenge 1 — from website/news>
 - <challenge 2 — from industry context>
 - <challenge 3 — from Salesforce/SA notes>
+
+COMPETITIVE LANDSCAPE (if applicable)
+  Competitor: <name>
+  Their pitch: <what competitor offers>
+  Our edge:   <where Databricks wins>
+
+DEMO AUDIENCE
+  Who:        <titles, technical level>
+  Wow factor: <what matters most to them>
+  Timeline:   <when's the demo>
+
+SALESFORCE (if available)
+  UCO:        <name> — Stage: <stage>
+  Account:    <name> — ARR: <arr>
+  SA/AE:      <names>
+  Other UCOs: <list of other active UCOs on account>
 
 DEMO OPPORTUNITY
 <How Databricks + this demo can address their specific challenges>
@@ -239,26 +319,45 @@ BRAND COLORS (extracted from website)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
-### Step 1.4: Define the demo story
+### Step 1.6: Gap-filling conversation
 
-Based on the research, propose a demo story and ask the user to confirm or adjust:
+After presenting the Customer Brief, ask: **"Here's what I found. What did I miss or get wrong? Skip anything that looks fine."**
 
-**1.4a Demo name** — Propose a name based on the customer + use case (e.g., "Simplot Genomics Intelligence Platform", "Apex Steel Predictive Maintenance"). Ask if they want to use the real customer name or a fictional one.
+**All questions in this step are skippable.** Only ask questions where the research left clear gaps. Do NOT re-ask things the SA already answered in Step 1.2.
 
-**1.4b Industry / Vertical** — Confirm the industry based on research. Don't ask if it's obvious.
+Pick 2-4 of the following based on what's actually missing (do NOT ask all of them):
 
-**1.4c Key use cases** — Propose 2-4 use cases that align with the customer's actual challenges (from research). These should NOT be generic — they should use the customer's own terminology discovered during research. For example:
+- **If research didn't reveal their data sources:** "Do you know what data systems they use? (e.g., S3, Kafka, Salesforce, SAP, flat files)"
+- **If research didn't reveal their tech stack:** "Any idea what their current analytics/data platform looks like?"
+- **If the use case area is still vague:** "Can you be more specific about the use case? What data goes in, what insight comes out?"
+- **If the demo audience is unknown:** "Any idea who'll be in the room? Technical depth matters for the demo design."
+- **If there are political sensitivities:** "Anything I should avoid mentioning? (e.g., a specific competitor name, a failed project, a sensitive topic)"
+- **If the business impact is unclear:** "Do you have any metrics on the cost of the current problem? (e.g., '$8M in annual overstocking', '3-day manual reporting cycle')"
+
+**Then ask:** "Anything else I should know that wouldn't show up in a web search?"
+
+### Step 1.7: Define the demo story
+
+Based on all research + SA context, propose a demo story and ask the user to confirm or adjust:
+
+**1.7a Demo name** — Propose a name based on the customer + use case (e.g., "Simplot Genomics Intelligence Platform", "Apex Steel Predictive Maintenance"). Ask if they want to use the real customer name or a fictional one.
+
+**1.7b Industry / Vertical** — Confirm the industry based on research. Don't ask if it's obvious.
+
+**1.7c Key use cases** — Propose 2-4 use cases that align with the customer's actual challenges (from research). These should NOT be generic — they should use the customer's own terminology discovered during research. For example:
   - Instead of "genomics analytics" → "Accelerate Simplot's marker-assisted selection pipeline by unifying genotype data from 3 breeding programs with field trial phenotype data"
   - Instead of "demand forecasting" → "Forecast frozen potato product demand across Simplot's 12 distribution centers to reduce the $8M annual overstocking problem"
 
-**1.4d Demo narrative** — Draft a 3-4 sentence narrative that:
+**1.7d Demo narrative** — Draft a 3-4 sentence narrative that:
   - Uses terminology and specifics found on the customer's own website
+  - References their current state and pain points (from SA interview)
   - Describes the specific problem the demo solves
   - Shows the Databricks-powered solution
-  - Mentions the expected business impact
+  - Mentions the expected business impact (quantified if the SA provided metrics)
+  - If competitive eval: subtly highlights where Databricks wins
   - Present this to the user and ask if it captures the right story.
 
-### Step 1.5: Confirm or adjust
+### Step 1.8: Confirm or adjust
 
 Show the complete Phase 1 summary and ask: "Does this capture the right story? Change anything you'd like."
 
@@ -275,6 +374,19 @@ story:
   customer_context: |
     <what the customer themselves say about the use case area,
     using their terminology — from website/public sources>
+  current_state:
+    platforms: ["<current data platforms>"]
+    data_sources: ["<known data sources>"]
+    pain_points: ["<what's broken>"]
+  audience:
+    who: "<titles/roles or 'unknown'>"
+    technical_level: "<technical|mixed|executive|unknown>"
+    wow_factor: "<what matters most>"
+    timeline: "<when's the demo>"
+  competitive:
+    active_eval: true|false
+    competitor: "<name or empty>"
+    our_edge: "<positioning notes>"
   brand_colors:
     primary: "<hex from website>"
     accent: "<hex from website>"
@@ -284,6 +396,7 @@ story:
     stage: "<if available>"
     sa: "<if available>"
     ae: "<if available>"
+    related_ucos: ["<other UCO names on account>"]
   use_cases:
     - name: "<use case 1>"
       description: "<customer-specific description using their terminology>"
@@ -526,6 +639,11 @@ CUSTOMER
   Website:     <url>
   Scale:       <summary>
   Salesforce:  <UCO stage if available>
+  Current:     <what they use today>
+  Audience:    <who + technical level>
+  Wow Factor:  <what matters most>
+  Competition: <competitor if any>
+  Timeline:    <when's the demo>
 
 STORY
   Use Cases:   <list — customer-specific descriptions>
