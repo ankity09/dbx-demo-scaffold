@@ -578,16 +578,75 @@ function timeAgo(iso) {
   return Math.floor(diff/86400)+'d ago';
 }
 
-// ─── Session-expired auto-refresh (Gotcha #29) ─────────────────────────
+// ─── Session-expired handling with proper re-login (Gotcha #29) ─────────
+let _sessionExpiredShown = false;
+
 function handleSessionExpired() {
-  // Preserve the current page so user returns here after reload
-  try { sessionStorage.setItem('_active_page', currentPage || 'dashboard'); } catch {}
-  const toast = document.createElement('div');
-  toast.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:var(--primary,#1a2332);color:#fff;text-align:center;padding:14px 20px;font-size:15px;font-weight:500;letter-spacing:0.3px;';
-  toast.textContent = 'Session expired \u2014 refreshing automatically\u2026';
-  document.body.appendChild(toast);
-  setTimeout(() => window.location.reload(), 1200);
+  if (_sessionExpiredShown) return;
+  _sessionExpiredShown = true;
+
+  // Full-screen modal — forces re-login, cannot be dismissed
+  const overlay = document.createElement('div');
+  overlay.id = 'session-expired-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(17,25,34,0.85);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:40px 48px;max-width:440px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.3);">
+      <div style="width:56px;height:56px;margin:0 auto 20px;background:#fee2e2;border-radius:50%;display:flex;align-items:center;justify-content:center;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <h2 style="font-size:20px;font-weight:600;color:#1e293b;margin-bottom:8px;">Session Expired</h2>
+      <p style="font-size:14px;color:#64748b;line-height:1.6;margin-bottom:24px;">
+        Your Databricks authentication has expired.<br>Please log in again to continue.
+      </p>
+      <button onclick="forceReLogin()" style="background:var(--primary,#1a2332);color:#fff;border:none;padding:12px 32px;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:background 0.2s;">
+        Log in again
+      </button>
+      <p style="font-size:12px;color:#94a3b8;margin-top:16px;">
+        This happens when your session is idle for an extended period.
+      </p>
+    </div>`;
+  document.body.appendChild(overlay);
 }
+
+function forceReLogin() {
+  // Navigate to the backend logout endpoint which expires ALL cookies
+  // (including HttpOnly proxy session cookies that JS cannot touch),
+  // then redirects to / — the proxy sees no session and starts a fresh OAuth flow.
+  window.location.href = '/api/force-logout';
+}
+
+// Proactive session check — runs every 5 minutes
+let _sessionCheckTimer = null;
+async function checkSessionValidity() {
+  try {
+    const resp = await fetch('/api/check-session');
+    const data = await resp.json();
+    if (!data.valid) {
+      handleSessionExpired();
+      if (_sessionCheckTimer) clearInterval(_sessionCheckTimer);
+    } else if (data.expires_in_seconds < 300) {
+      // Token expires in < 5 min — warn with a non-blocking banner
+      showSessionWarning(data.expires_in_seconds);
+    }
+  } catch (e) {
+    console.warn('Session check failed:', e);
+  }
+}
+
+function showSessionWarning(secondsLeft) {
+  if (document.getElementById('session-warning-banner')) return;
+  const mins = Math.max(1, Math.round(secondsLeft / 60));
+  const banner = document.createElement('div');
+  banner.id = 'session-warning-banner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#fef3c7;color:#92400e;text-align:center;padding:10px 20px;font-size:13px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:12px;';
+  banner.innerHTML = `<span>Your session expires in ~${mins} minute${mins > 1 ? 's' : ''}. Save your work and </span><button onclick="forceReLogin()" style="background:#92400e;color:#fff;border:none;padding:4px 14px;border-radius:4px;font-size:12px;cursor:pointer;">Re-login now</button><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#92400e;cursor:pointer;font-size:16px;margin-left:8px;">&times;</button>`;
+  document.body.appendChild(banner);
+}
+
+_sessionCheckTimer = setInterval(checkSessionValidity, 5 * 60 * 1000);
+setTimeout(checkSessionValidity, 10000);
 
 // ─── Text Utilities ──────────────────────────────────────────────────────
 function escHtml(s) {
@@ -658,11 +717,7 @@ document.querySelectorAll('#sidebar nav a').forEach(a => {
   a.addEventListener('click', e => { e.preventDefault(); navigate(a.dataset.page); });
 });
 
-// Restore page after session-expired reload
-try {
-  const saved = sessionStorage.getItem('_active_page');
-  if (saved) { sessionStorage.removeItem('_active_page'); navigate(saved); }
-} catch {}
+// (Session expiry now shows a re-login modal instead of reloading)
 
 // ─── Detail Panel ────────────────────────────────────────────────────────
 function openDetail(title, html) {

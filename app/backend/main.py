@@ -1184,4 +1184,7 @@ app.mount("/static", StaticFiles(directory=os.path.join(os.path.dirname(__file__
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    return FileResponse(os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "index.html"))
+    return FileResponse(
+        os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "index.html"),
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"},
+    )
